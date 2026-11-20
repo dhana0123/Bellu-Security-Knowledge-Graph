@@ -1,0 +1,22 @@
+{
+ "profile": "fixture",
+ "derived": true,
+ "note": "derived by hand from testdata/baseline CSVs (VulKG MERGE semantics model), not from a Neo4j run; verify on first container run",
+ "columns": [
+  "cveID"
+ ],
+ "rows": [
+  [
+   "CVE-2019-1001"
+  ],
+  [
+   "CVE-2019-1008"
+  ],
+  [
+   "CVE-2019-1013"
+  ],
+  [
+   "CVE-2019-1025"
+  ]
+ ]
+}

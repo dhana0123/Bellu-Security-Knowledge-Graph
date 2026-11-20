@@ -1,0 +1,25 @@
+# secrets
+.env
+.env.*
+!.env.example
+!.env.8gb
+
+# build output
+/bskg
+/bin/
+/dist/
+*.test
+*.out
+coverage.*
+
+# local cache and data
+/cache/
+/var/
+*.part
+validation-report.json
+
+# terraform
+infra/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars

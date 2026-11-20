@@ -1,0 +1,4 @@
+{"profile":"fixture","source":"testdata/baseline/README.md (model-computed, verify on first real fixture load)","metrics":{
+"Vulnerability":40,"Exploit":15,"Weakness":12,"Product":14,"Vendor":13,"Author":10,"Domain":9,
+"EXPLOITS":13,"AFFECTS":37,"BELONGS_TO":15,"EXAMPLE_OF":26,"WRITES":15,"REFERS_TO":37,
+"exploitableVulnerability":12,"exactlyOneExploit":11,"moreThanOneExploit":1}}

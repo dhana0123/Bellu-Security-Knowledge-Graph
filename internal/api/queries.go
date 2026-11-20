@@ -1,0 +1,213 @@
+package api
+
+import (
+	"context"
+
+	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
+
+	"github.com/bellu/bskg/internal/graph"
+)
+
+// Every Cypher statement the API runs is a constant in this file and is listed
+// in allQueries, which the read-only lint test scans (Requirements 17.6, 17.13).
+// Client input reaches Neo4j only as bound parameters. Queries run only through
+// runRead, which uses graph.Client.Read (AccessModeRead, ExecuteRead).
+
+const (
+	// Graph metadata (envelope).
+	cypherBuildMeta = `MATCH (b:BuildMeta {id: 'build'}) RETURN b.buildState AS state, b.baselineLoadedAt AS baseline`
+	cypherLastRuns  = `MATCH (r:SyncRun) WHERE r.status IN ['succeeded', 'succeeded_with_errors'] RETURN r.source AS source, max(r.endedAt) AS at`
+
+	// Vulnerability detail. $id is the canonical CVE id. Returns one row with
+	// the node properties (which include sources and p_<src>_* provenance) and
+	// the related entities.
+	cypherVulnerabilityByID = `
+MATCH (v:Vulnerability {cveID: $id})
+RETURN properties(v) AS props,
+  [(v)-[:EXAMPLE_OF]->(w:Weakness) | w.cweID] AS weaknesses,
+  [(e:Exploit)-[:EXPLOITS]->(v) | {
+      eid: e.eid, exploitPublishDate: e.exploitPublishDate,
+      exploitType: e.exploitType, platform: e.platform,
+      authors: [(a:Author)-[:WRITES]->(e) | a.authorName]}] AS exploits,
+  [(v)-[r:AFFECTS]->(p:Product) | {
+      productName: p.productName, productType: p.productType,
+      numOfVersion: r.numOfVersion, affectedVersion: r.affectedVersion,
+      vendors: [(p)-[:BELONGS_TO]->(vd:Vendor) | vd.vendorName]}] AS products,
+  [(v)-[:REFERS_TO]->(d:Domain) | d.domainName] AS domains`
+
+	// Vulnerability existence and sources for history and as-of routes.
+	cypherVulnerabilityExists = `MATCH (v:Vulnerability {cveID: $id}) RETURN v.cveID AS cveID, properties(v) AS props`
+
+	// Weakness.
+	cypherWeaknessByID  = `MATCH (w:Weakness {cweID: $id}) RETURN properties(w) AS props`
+	cypherWeaknessVulns = `
+MATCH (v:Vulnerability)-[:EXAMPLE_OF]->(:Weakness {cweID: $id})
+WHERE ($includeRejected OR coalesce(v.rejected, false) = false)
+  AND ($after IS NULL OR v.cveID > $after)
+RETURN v.cveID AS cveID, v.publishedDate AS publishedDate, v.v3baseScore AS v3baseScore
+ORDER BY v.cveID ASC LIMIT $limit`
+
+	// Product. Exact key lookup first, then a bounded case-insensitive scan.
+	cypherProductExact = `MATCH (p:Product {productName: $name}) RETURN p.productName AS key LIMIT 1`
+	cypherProductFold  = `MATCH (p:Product) WHERE toLower(p.productName) = $lower RETURN p.productName AS key ORDER BY key LIMIT 1`
+	cypherProductByKey = `
+MATCH (p:Product {productName: $name})
+RETURN properties(p) AS props, [(p)-[:BELONGS_TO]->(vd:Vendor) | vd.vendorName] AS vendors`
+	cypherProductVulns = `
+MATCH (v:Vulnerability)-[:AFFECTS]->(:Product {productName: $name})
+WHERE ($includeRejected OR coalesce(v.rejected, false) = false)
+  AND ($after IS NULL OR v.cveID > $after)
+RETURN v.cveID AS cveID, v.publishedDate AS publishedDate, v.v3baseScore AS v3baseScore
+ORDER BY v.cveID ASC LIMIT $limit`
+
+	// Vendor.
+	cypherVendorExact = `MATCH (vd:Vendor {vendorName: $name}) RETURN vd.vendorName AS key LIMIT 1`
+	cypherVendorFold  = `MATCH (vd:Vendor) WHERE toLower(vd.vendorName) = $lower RETURN vd.vendorName AS key ORDER BY key LIMIT 1`
+	cypherVendorByKey = `
+MATCH (vd:Vendor {vendorName: $name})
+RETURN properties(vd) AS props, [(p:Product)-[:BELONGS_TO]->(vd) | p.productName] AS products`
+	cypherVendorVulns = `
+MATCH (:Vendor {vendorName: $name})<-[:BELONGS_TO]-(:Product)<-[:AFFECTS]-(v:Vulnerability)
+WHERE ($includeRejected OR coalesce(v.rejected, false) = false)
+  AND ($after IS NULL OR v.cveID > $after)
+WITH DISTINCT v
+RETURN v.cveID AS cveID, v.publishedDate AS publishedDate, v.v3baseScore AS v3baseScore
+ORDER BY v.cveID ASC LIMIT $limit`
+
+	// Exploit (metadata only, Requirement 24.2).
+	cypherExploitByID = `
+MATCH (e:Exploit {eid: $id})
+RETURN properties(e) AS props,
+  [(a:Author)-[:WRITES]->(e) | a.authorName] AS authors,
+  [(e)-[:EXPLOITS]->(v:Vulnerability) | v.cveID] AS vulnerabilities`
+
+	// Search without free text: order publishedDate DESC, cveID DESC.
+	// Parameters: publishedFrom, publishedTo (date or null), cvssV3Min,
+	// cvssV3Max, exploitability, kev, cwe (null = no filter), includeRejected,
+	// afterKey (date) and afterID (keyset cursor, null on the first page), limit.
+	cypherSearch = `
+MATCH (v:Vulnerability)
+WITH v, coalesce(v.publishedDate, date('0001-01-01')) AS sk
+WHERE ($includeRejected OR coalesce(v.rejected, false) = false)
+  AND ($publishedFrom IS NULL OR sk >= $publishedFrom)
+  AND ($publishedTo IS NULL OR sk <= $publishedTo)
+  AND ($cvssV3Min IS NULL OR v.v3baseScore >= $cvssV3Min)
+  AND ($cvssV3Max IS NULL OR v.v3baseScore <= $cvssV3Max)
+  AND ($exploitability IS NULL OR v.exploitability = $exploitability)
+  AND ($kev IS NULL OR coalesce(v.kev, false) = $kev)
+  AND ($cwe IS NULL OR EXISTS { (v)-[:EXAMPLE_OF]->(:Weakness {cweID: $cwe}) })
+  AND ($afterID IS NULL OR sk < $afterKey OR (sk = $afterKey AND v.cveID < $afterID))
+RETURN v.cveID AS cveID, v.publishedDate AS publishedDate, v.description AS description,
+  v.v3baseScore AS v3baseScore, v.v3baseSeverity AS v3baseSeverity,
+  v.exploitability AS exploitability, v.kev AS kev, v.sources AS sources, sk AS sortKey
+ORDER BY sk DESC, v.cveID DESC LIMIT $limit`
+
+	// Search with free text: order score DESC, cveID DESC. $q is a
+	// Lucene-escaped query string. afterKey is the float score.
+	cypherSearchText = `
+CALL db.index.fulltext.queryNodes('VulnerabilityDescriptionFullTextSchema', $q) YIELD node AS v, score
+WITH v, score, coalesce(v.publishedDate, date('0001-01-01')) AS sk
+WHERE ($includeRejected OR coalesce(v.rejected, false) = false)
+  AND ($publishedFrom IS NULL OR sk >= $publishedFrom)
+  AND ($publishedTo IS NULL OR sk <= $publishedTo)
+  AND ($cvssV3Min IS NULL OR v.v3baseScore >= $cvssV3Min)
+  AND ($cvssV3Max IS NULL OR v.v3baseScore <= $cvssV3Max)
+  AND ($exploitability IS NULL OR v.exploitability = $exploitability)
+  AND ($kev IS NULL OR coalesce(v.kev, false) = $kev)
+  AND ($cwe IS NULL OR EXISTS { (v)-[:EXAMPLE_OF]->(:Weakness {cweID: $cwe}) })
+  AND ($afterID IS NULL OR score < $afterKey OR (score = $afterKey AND v.cveID < $afterID))
+RETURN v.cveID AS cveID, v.publishedDate AS publishedDate, v.description AS description,
+  v.v3baseScore AS v3baseScore, v.v3baseSeverity AS v3baseSeverity,
+  v.exploitability AS exploitability, v.kev AS kev, v.sources AS sources, score AS sortKey
+ORDER BY score DESC, v.cveID DESC LIMIT $limit`
+
+	// Co-exploitation and co-affected, computed at query time (Requirement 6.6, 6.7).
+	cypherCoExploited = `
+MATCH (a:Vulnerability {cveID: $id})<-[:EXPLOITS]-(e:Exploit)-[:EXPLOITS]->(b:Vulnerability)
+WHERE b <> a AND ($after IS NULL OR b.cveID > $after)
+RETURN b.cveID AS cveID, collect(DISTINCT e.eid) AS sharedExploits,
+  collect(DISTINCT e.exploitPublishDate) AS sharedExploitDates
+ORDER BY cveID ASC LIMIT $limit`
+	cypherCoAffected = `
+MATCH (a:Vulnerability {cveID: $id})-[:AFFECTS]->(p:Product)<-[:AFFECTS]-(b:Vulnerability)
+WHERE b <> a AND ($after IS NULL OR b.cveID > $after)
+RETURN b.cveID AS cveID, collect(DISTINCT p.productName) AS sharedProducts
+ORDER BY cveID ASC LIMIT $limit`
+
+	// Change history (keyset on id, newest first) and as-of inputs.
+	cypherHistory = `
+MATCH (c:Change {entityKey: $entityKey})
+WHERE $before IS NULL OR c.id < $before
+RETURN c.id AS id, c.type AS type, c.field AS field, c.oldValue AS oldValue,
+  c.newValue AS newValue, c.source AS source, c.runId AS runId, c.at AS at
+ORDER BY c.id DESC LIMIT $limit`
+	cypherAsOfChanges = `
+MATCH (c:Change {entityKey: $entityKey})
+WHERE c.at > $time AND c.type IN ['propertyChanged', 'entityCreated']
+RETURN c.id AS id, c.type AS type, c.field AS field, c.oldValue AS oldValue, c.at AS at
+ORDER BY c.id DESC`
+	cypherHistoryFloor = `
+OPTIONAL MATCH (c:Change {entityKey: $entityKey})
+WITH min(c.at) AS earliest
+OPTIONAL MATCH (b:BuildMeta {id: 'build'})
+RETURN earliest, b.baselineLoadedAt AS baselineLoadedAt, b.changesPurgedBefore AS purgedBefore`
+
+	// Status.
+	cypherStatusRuns = `
+MATCH (r:SyncRun)
+WITH r ORDER BY r.startedAt DESC
+WITH r.source AS source, collect(r)[0] AS last
+RETURN source, last.id AS runId, last.status AS status, last.startedAt AS startedAt,
+  last.endedAt AS endedAt, last.error AS error`
+	cypherStatusCheckpoints = `MATCH (c:Checkpoint) RETURN c.source AS source, c.watermark AS watermark, c.resume AS resume, c.updatedAt AS updatedAt`
+	cypherStatusDeadLetters = `MATCH (d:DeadLetter) RETURN d.source AS source, count(d) AS deadLetters`
+	cypherStatusJobs        = `
+MATCH (j:Job)
+RETURN j.name AS name, j.state AS state, j.attempts AS attempts, j.currentStep AS currentStep,
+  j.rowsDone AS rowsDone, j.rowsTotal AS rowsTotal, j.startedAt AS startedAt,
+  j.endedAt AS endedAt, j.error AS error
+ORDER BY j.startedAt ASC`
+
+	// Sources list (no graph access beyond the envelope; kept for completeness
+	// of last-success reads).
+	cypherSourceLastSuccess = cypherLastRuns
+)
+
+// allQueries lists every Cypher constant for the read-only lint.
+var allQueries = []string{
+	cypherBuildMeta, cypherLastRuns,
+	cypherVulnerabilityByID, cypherVulnerabilityExists,
+	cypherWeaknessByID, cypherWeaknessVulns,
+	cypherProductExact, cypherProductFold, cypherProductByKey, cypherProductVulns,
+	cypherVendorExact, cypherVendorFold, cypherVendorByKey, cypherVendorVulns,
+	cypherExploitByID,
+	cypherSearch, cypherSearchText,
+	cypherCoExploited, cypherCoAffected,
+	cypherHistory, cypherAsOfChanges, cypherHistoryFloor,
+	cypherStatusRuns, cypherStatusCheckpoints, cypherStatusDeadLetters, cypherStatusJobs,
+	cypherSourceLastSuccess,
+}
+
+// Row is one result record as a column map.
+type Row = map[string]any
+
+// runRead runs one constant query in a read transaction and returns all rows.
+// It is the only way handlers execute Cypher. The query must be one of the
+// constants above (the type is string, enforced by review and the lint test).
+func runRead(ctx context.Context, g *graph.Client, query string, params map[string]any) ([]Row, error) {
+	v, err := g.Read(ctx, func(ctx context.Context, tx neo4j.ManagedTransaction) (any, error) {
+		res, err := tx.Run(ctx, query, params)
+		if err != nil {
+			return nil, err
+		}
+		rows := []Row{}
+		for res.Next(ctx) {
+			rows = append(rows, res.Record().AsMap())
+		}
+		return rows, res.Err()
+	})
+	if err != nil {
+		return nil, err
+	}
+	return v.([]Row), nil
+}

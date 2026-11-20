@@ -1,0 +1,37 @@
+Bellu Security Knowledge Graph (BSKG)
+Copyright 2025 Bellu
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+This product includes material derived from VulKG:
+
+  Title:       VulKG (vulnerability knowledge graph)
+  Authors:     Jiao Yin, Wei Hong, Hua Wang, Jinli Cao, Yuan Miao, Yanchun Zhang
+  DOI:         10.1145/3671005
+  Repository:  https://github.com/happyResearcher/VulKG
+  License:     Apache License, Version 2.0
+
+Reused excerpts and changes (Apache-2.0 section 4(b) change notes):
+
+1. Schema and entity definitions (node labels, relationship types, property
+   names and key properties for Vulnerability, Exploit, Author, Weakness,
+   Product, Vendor, Domain).
+   Changes: CVSS score properties are stored as decimals (VulKG casts several
+   to integers); no range index on Vulnerability.description (a full-text
+   index is used instead).
+
+2. Load steps adapted from 2.VulKG_Deployment_Cypher.cypher (load order and
+   MERGE semantics).
+   Changes:
+   - Rewritten in Neo4j 5.26 syntax (constraints, indexes, SHOW commands).
+   - Loaded by a Go loader over Bolt instead of apoc.load.csv and
+     apoc.periodic.iterate.
+   - affectedVersion is replaced on each load instead of appended.
+   - CVSS scores are decimals.
+   - No description range index.
+
+3. The pinned VulKG import CSV files are not stored in this repository. They
+   are fetched from an operator-controlled S3 bucket and verified by SHA-256.
+
+Excluded from this repository: VulKG machine-learning scripts, datasets, and
+embedding artifacts.
