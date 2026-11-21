@@ -20,7 +20,7 @@ var sourceList = []sourceInfo{
 			"development, and commercial purposes, on the condition that MITRE's copyright designation and the license are reproduced in any copy",
 		Attribution: "Not recorded yet",
 	},
-	{Name: "nvd", License: "Not recorded yet", Attribution: "Not recorded yet"},
+	{Name: "nvd", License: "NVD API Terms of Use (https://nvd.nist.gov/developers/terms-of-use)", Attribution: "This product uses the NVD API but is not endorsed or certified by the NVD."},
 	{
 		Name:        "exploitdb",
 		License:     "GNU General Public License v2.0 (README and LICENSE.md of the repository)",
