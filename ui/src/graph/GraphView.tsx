@@ -244,7 +244,8 @@ export function GraphView() {
             Back to CVE detail
           </Link>
         )}
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <CveShortcut />
           {!overviewMode && (
             <>
               <label htmlFor="depth" className="text-sm text-slate-300">
@@ -270,9 +271,6 @@ export function GraphView() {
           </button>
         </div>
       </div>
-      <div className="mb-3">
-        <CveShortcut />
-      </div>
       <Loading active={loading} />
       <ErrorMessage error={error} />
       {overview && (
@@ -285,7 +283,7 @@ export function GraphView() {
       {overview?.truncated && (
         <p role="status" className="mb-2 rounded-md border border-amber-700 bg-amber-950 px-3 py-2 text-sm text-amber-200">
           The graph is larger than the display limit, so this is a subset: the vulnerabilities with the highest exploitability and
-          CVSS scores, with the nodes directly connected to them. Search for a CVE id above, or double-click a node to load its
+          CVSS scores, with the nodes directly connected to them. Enter a CVE id in the toolbar, or double-click a node to load its
           neighbours.
         </p>
       )}

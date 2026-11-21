@@ -1,4 +1,4 @@
-import { Link, NavLink, Navigate, Outlet } from 'react-router';
+import { Link, NavLink, Navigate, Outlet, useLocation } from 'react-router';
 import { useAuth } from '../auth/AuthContext';
 import { BuildBanner } from './BuildBanner';
 import { btn } from './classes';
@@ -8,6 +8,7 @@ const navLink = ({ isActive }: { isActive: boolean }) =>
 
 export function Layout() {
   const { authed, logout } = useAuth();
+  const { pathname } = useLocation();
   if (!authed) return <Navigate to="/login" replace />;
   return (
     <>
@@ -18,11 +19,11 @@ export function Layout() {
             BSKG
           </Link>
           <nav aria-label="Main" className="flex gap-1">
-            <NavLink to="/" end className={navLink}>
-              Search
-            </NavLink>
-            <NavLink to="/graph" className={navLink}>
+            <NavLink to="/" className={({ isActive }) => navLink({ isActive: isActive || pathname.startsWith('/graph') })} end>
               Graph
+            </NavLink>
+            <NavLink to="/search" className={navLink}>
+              Search
             </NavLink>
             <NavLink to="/stats" className={navLink}>
               Stats

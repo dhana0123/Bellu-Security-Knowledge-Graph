@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { useNavigate } from 'react-router';
-import { btnPrimary, errorBox, input } from '../common/classes';
+import { btn, errorBox, input } from '../common/classes';
 import { graphPath } from '../cve/links';
 import { normalizeCveId } from './entry';
 
@@ -23,21 +23,21 @@ export function CveShortcut() {
   }
 
   return (
-    <form onSubmit={submit} noValidate role="search" aria-label="Open a CVE graph" className="max-w-xl">
+    <form onSubmit={submit} noValidate role="search" aria-label="Open a CVE graph" className="shrink-0">
       <div className="flex items-center gap-2">
         <label htmlFor="graph-cve" className="text-sm text-slate-300">
           CVE id
         </label>
         <input
           id="graph-cve"
-          className={input}
+          className={`${input} w-44 !py-1 text-sm`}
           value={value}
           placeholder="CVE-2021-44228"
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? 'graph-cve-err' : undefined}
           onChange={(e) => setValue(e.target.value)}
         />
-        <button type="submit" className={btnPrimary}>
+        <button type="submit" className={btn}>
           Open graph
         </button>
       </div>
