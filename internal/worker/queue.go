@@ -1,5 +1,6 @@
 // Package worker runs the Build_Job_Queue: an ordered list of named jobs
-// (migrate, cwe, nvd-catch-up, exploitdb) with retry, persisted state, and a
+// (migrate, cwe, nvd-catch-up, exploitdb, then the enabled later sources, see
+// SourceJobs) with retry, persisted state, and a
 // buildState value written at every transition (Requirement 11).
 //
 // Persistence: each job is a (:Job {name}) node with the properties

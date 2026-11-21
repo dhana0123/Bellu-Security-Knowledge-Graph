@@ -48,8 +48,13 @@ type Config struct {
 	Pending func(ctx context.Context) (bool, error)
 	// UI is the embedded Client_UI file system served at /ui/. Nil disables it.
 	UI fs.FS
-	// MaxPhase is the highest schema phase applied (1 when zero).
+	// MaxPhase is the highest schema phase applied (1 when zero). It is the
+	// initial value and the fallback when Phase fails.
 	MaxPhase int
+	// Phase reports the highest schema phase from the applied migrations
+	// (MigrationPhase). The server refreshes it at most every MetaCacheTTL.
+	// Nil keeps MaxPhase.
+	Phase func(ctx context.Context) (int, error)
 }
 
 // Server is the HTTP server skeleton. Later tasks add routes with Handle.
@@ -61,6 +66,10 @@ type Server struct {
 	pendMu  sync.Mutex
 	pendVal bool
 	pendExp time.Time
+
+	phaseMu  sync.Mutex
+	phaseVal int
+	phaseExp time.Time
 }
 
 // New builds a Server. Auth, Limiter, Meta, Ping, and Logger are required.
@@ -81,8 +90,9 @@ func New(cfg Config) *Server {
 		cfg.Sources = []string{"cwe", "nvd", "exploitdb"}
 	}
 	s := &Server{
-		cfg: cfg,
-		mux: http.NewServeMux(),
+		cfg:      cfg,
+		phaseVal: cfg.MaxPhase,
+		mux:      http.NewServeMux(),
 		meta: &metaProvider{
 			reader: cfg.Meta, version: cfg.Version, sources: cfg.Sources,
 			stale: cfg.StaleAfter, now: cfg.Now, timeout: HealthTimeout,
@@ -320,4 +330,25 @@ func (s *Server) pending(ctx context.Context) bool {
 	}
 	s.pendVal, s.pendExp = v, now.Add(MetaCacheTTL)
 	return v
+}
+
+// maxPhase returns the highest schema phase the graph has applied, cached for
+// MetaCacheTTL. A failed refresh keeps the last value.
+func (s *Server) maxPhase(ctx context.Context) int {
+	if s.cfg.Phase == nil {
+		return s.cfg.MaxPhase
+	}
+	now := s.cfg.Now()
+	s.phaseMu.Lock()
+	defer s.phaseMu.Unlock()
+	if now.Before(s.phaseExp) {
+		return s.phaseVal
+	}
+	ctx, cancel := context.WithTimeout(ctx, HealthTimeout)
+	defer cancel()
+	if v, err := s.cfg.Phase(ctx); err == nil && v >= 1 {
+		s.phaseVal = v
+	}
+	s.phaseExp = now.Add(MetaCacheTTL)
+	return s.phaseVal
 }

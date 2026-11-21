@@ -77,12 +77,18 @@ type SchemaCheck struct {
 
 // CheckConstraints compares the catalog with RequiredConstraints.
 func CheckConstraints(cat []CatalogConstraint) []SchemaCheck {
+	return CheckConstraintsFor(cat, 1)
+}
+
+// CheckConstraintsFor compares the catalog with RequiredConstraintsFor(phase).
+func CheckConstraintsFor(cat []CatalogConstraint, phase int) []SchemaCheck {
 	by := map[string]CatalogConstraint{}
 	for _, c := range cat {
 		by[c.Name] = c
 	}
-	out := make([]SchemaCheck, 0, len(RequiredConstraints))
-	for _, r := range RequiredConstraints {
+	req := RequiredConstraintsFor(phase)
+	out := make([]SchemaCheck, 0, len(req))
+	for _, r := range req {
 		s := SchemaCheck{Name: r.Name, Kind: "constraint"}
 		got, ok := by[r.Name]
 		switch {
@@ -193,6 +199,8 @@ type Inputs struct {
 	Duplicates  []DuplicateCheck
 	Endpoints   []EndpointCheck
 	Reject      RejectCheck
+	// Phase is the highest schema phase applied (0 means 1).
+	Phase int
 }
 
 // Report is the Validation_Report JSON document.
@@ -214,7 +222,7 @@ type Report struct {
 // are evaluated even when an earlier one fails.
 func BuildReport(in Inputs) Report {
 	r := Report{
-		Schema:     append(CheckConstraints(in.Constraints), CheckIndexes(in.Indexes)...),
+		Schema:     append(CheckConstraintsFor(in.Constraints, in.Phase), CheckIndexes(in.Indexes)...),
 		Duplicates: nonNilDup(in.Duplicates),
 		Endpoints:  nonNilEnd(in.Endpoints),
 		Reject:     in.Reject,

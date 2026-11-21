@@ -12,6 +12,7 @@ import (
 
 	"github.com/bellu/bskg/internal/graph"
 	"github.com/bellu/bskg/internal/model"
+	"github.com/bellu/bskg/internal/resolve"
 )
 
 const (
@@ -74,7 +75,7 @@ func keyExpr(v string) string {
 	var b strings.Builder
 	b.WriteString("CASE head([l IN labels(" + v + ") WHERE l IN $domainLabels])")
 	for _, l := range model.Labels {
-		if l.Kind == model.Domain && l.Phase <= 1 {
+		if l.Kind == model.Domain {
 			fmt.Fprintf(&b, " WHEN '%s' THEN %s.%s", l.Name, v, l.Key)
 		}
 	}
@@ -102,7 +103,7 @@ func buildNeighborhood(label, key string, depth int) string {
 
 func init() {
 	for _, l := range model.Labels {
-		if l.Kind == model.Domain && l.Phase <= 1 {
+		if l.Kind == model.Domain {
 			q1 := buildNeighborhood(l.Name, l.Key, 1)
 			q2 := buildNeighborhood(l.Name, l.Key, 2)
 			neighborhoodQueries[l.Name] = [2]string{q1, q2}
@@ -133,7 +134,7 @@ type nbRequest struct {
 func (o *ops) parseNeighborhood(r *http.Request) (nbRequest, error) {
 	v := r.URL.Query()
 	req := nbRequest{depth: 1, limit: neighborhoodDefaultLimit}
-	maxPhase := o.s.cfg.MaxPhase
+	maxPhase := o.s.maxPhase(r.Context())
 	allowedLabels := map[string]bool{}
 	for _, n := range model.DomainLabels(maxPhase) {
 		allowedLabels[n] = true
@@ -153,7 +154,14 @@ func (o *ops) parseNeighborhood(r *http.Request) (nbRequest, error) {
 		return req, bad("id", "must be at most 256 characters")
 	}
 	if req.label == "Vulnerability" {
-		req.id = strings.ToUpper(req.id)
+		// CVE ids are upper case; advisory ids have their own canonical form.
+		if k, err := resolve.CVE(req.id); err == nil {
+			req.id = k.Value
+		} else if k, err := resolve.Advisory(req.id); err == nil {
+			req.id = k.Value
+		} else {
+			req.id = strings.ToUpper(req.id)
+		}
 	}
 	if s := v.Get("depth"); s != "" {
 		if s != "1" && s != "2" {
@@ -263,7 +271,7 @@ func (o *ops) neighborhood(w http.ResponseWriter, r *http.Request) {
 		"id": req.id, "limit": int64(req.limit), "cap": int64(req.limit), "keep": int64(req.limit - 1),
 		"allRels": req.relTypes == nil, "relTypes": orEmpty(req.relTypes),
 		"allNodes": req.nodeTypes == nil, "nodeTypes": orEmpty(req.nodeTypes),
-		"domainLabels": model.DomainLabels(o.s.cfg.MaxPhase),
+		"domainLabels": model.DomainLabels(o.s.maxPhase(r.Context())),
 	}
 	rows, err := o.q(ctx, qs[req.depth-1], params)
 	if err != nil {

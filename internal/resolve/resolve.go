@@ -77,6 +77,16 @@ func Resolve(ref source.Ref) (Key, error) {
 		return Repository(ref.Raw)
 	case source.RefFixCommit:
 		return FixCommit(ref.Raw)
+	case source.RefPackage:
+		return Package(ref.Raw)
+	case source.RefAdvisory:
+		return Advisory(ref.Raw)
+	case source.RefCAPEC:
+		return CAPEC(ref.Raw)
+	case source.RefTechnique:
+		return Technique(ref.Raw)
+	case source.RefAtlas:
+		return Atlas(ref.Raw)
 	}
 	return Key{}, &Error{Kind: ref.Kind, Raw: ref.Raw, Reason: "unknown reference kind"}
 }
@@ -292,7 +302,7 @@ func NormalizeRepoURL(raw string) (string, error) {
 	}
 	segs[len(segs)-1] = last
 	for _, s := range segs {
-		if !segRe.MatchString(s) || s == "." || s == ".." {
+		if !segRe.MatchString(s) || s == "." || s == ".." || (s == "-" && host == "gitlab.com") {
 			return bad("bad path segment")
 		}
 	}

@@ -66,6 +66,11 @@ func Apply(ctx context.Context, tx neo4j.ManagedTransaction, w Writes, recs []ch
 	if !provenance.ValidSource(w.Source) {
 		return fmt.Errorf("upsert: invalid source %q", w.Source)
 	}
+	for _, m := range w.Merges {
+		if err := mergeVulnerability(ctx, tx, m); err != nil {
+			return fmt.Errorf("merge vulnerability %s into %s: %w", m.From, m.Into, err)
+		}
+	}
 	byLabel := map[string][]any{}
 	for _, n := range w.Nodes {
 		byLabel[n.Key.Label] = append(byLabel[n.Key.Label], map[string]any{"key": n.Key.Value, "props": n.Props})

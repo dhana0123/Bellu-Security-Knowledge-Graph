@@ -11,6 +11,7 @@ import (
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
 	"github.com/bellu/bskg/internal/graph"
+	"github.com/bellu/bskg/internal/resolve"
 )
 
 // queryFunc runs one constant query and returns its rows. Production code uses
@@ -49,7 +50,6 @@ func Routes(s *Server, q func(ctx context.Context, query string, params map[stri
 
 var (
 	provKey = regexp.MustCompile(`^p_([a-z][a-z0-9]{0,15})_(run|at|ref|removed)$`)
-	cveRe   = regexp.MustCompile(`^CVE-\d{4}-\d{4,19}$`)
 )
 
 // jsonValue converts driver values (dates, times, nested maps) to JSON-safe ones.
@@ -163,18 +163,34 @@ func asList(v any) []any {
 }
 
 func (e *Entities) vulnerability(w http.ResponseWriter, r *http.Request) {
-	id := strings.ToUpper(strings.TrimSpace(r.PathValue("id")))
-	if !cveRe.MatchString(id) {
-		e.notFound(w, r, "Vulnerability", id)
+	raw := strings.TrimSpace(r.PathValue("id"))
+	ids, display := vulnerabilityIDCandidates(raw)
+	if len(ids) == 0 {
+		e.notFound(w, r, "Vulnerability", display)
 		return
 	}
+	id := ids[0]
 	rows, ok := e.run(w, r, cypherVulnerabilityByID, map[string]any{"id": id})
 	if !ok {
 		return
 	}
 	if len(rows) == 0 {
-		e.notFound(w, r, "Vulnerability", id)
-		return
+		// No node has this cveID: look for a node that lists it as an alias.
+		found, ok := e.resolveAlias(w, r, ids)
+		if !ok {
+			return
+		}
+		if found == "" {
+			e.notFound(w, r, "Vulnerability", display)
+			return
+		}
+		if rows, ok = e.run(w, r, cypherVulnerabilityByID, map[string]any{"id": found}); !ok {
+			return
+		}
+		if len(rows) == 0 {
+			e.notFound(w, r, "Vulnerability", display)
+			return
+		}
 	}
 	row := rows[0]
 	props, sources, prov := splitProps(asProps(row["props"]))
@@ -189,6 +205,42 @@ func (e *Entities) vulnerability(w http.ResponseWriter, r *http.Request) {
 		"repositories":  asList(row["repositories"]),
 		"fixCommits":    asList(row["fixCommits"]),
 	})
+}
+
+// vulnerabilityIDCandidates returns the ids a path value may stand for, in
+// lookup order: the canonical CVE id or advisory id (Requirement 9), then the
+// trimmed raw value when it differs (an alias in a form no resolver knows).
+// ids is empty when the value cannot be an id. display is the id named in a
+// 404 message: the canonical id, or the upper-cased raw value.
+func vulnerabilityIDCandidates(raw string) (ids []string, display string) {
+	display = strings.ToUpper(raw)
+	if raw == "" || len(raw) > 200 {
+		return nil, display
+	}
+	if k, err := resolve.CVE(raw); err == nil {
+		ids, display = append(ids, k.Value), k.Value
+	} else if k, err := resolve.Advisory(raw); err == nil {
+		ids, display = append(ids, k.Value), k.Value
+	}
+	if len(ids) == 0 || ids[0] != raw {
+		ids = append(ids, raw)
+	}
+	return ids, display
+}
+
+// resolveAlias returns the cveID of the Vulnerability that has one of ids in
+// its aliases, or "" when none has. It returns false after writing a response
+// when the query fails.
+func (e *Entities) resolveAlias(w http.ResponseWriter, r *http.Request, ids []string) (string, bool) {
+	rows, ok := e.run(w, r, cypherVulnerabilityByAlias, map[string]any{"aliases": ids})
+	if !ok {
+		return "", false
+	}
+	if len(rows) == 0 {
+		return "", true
+	}
+	id, _ := rows[0]["cveID"].(string)
+	return id, true
 }
 
 func (e *Entities) weakness(w http.ResponseWriter, r *http.Request) {

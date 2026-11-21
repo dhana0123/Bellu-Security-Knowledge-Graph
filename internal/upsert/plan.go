@@ -27,6 +27,8 @@ const (
 	TypePropertyChanged     = change.TypePropertyChanged
 	TypeRelationshipCreated = change.TypeRelationshipCreated
 	TypeRelationshipRemoved = "relationshipRemoved"
+	TypeVulnerabilityMerged = change.TypeVulnerabilityMerged
+	TypeAliasConflict       = change.TypeAliasConflict
 	removedProp             = "removed"
 	exploitsType            = "EXPLOITS"
 	exploitPublishDateProp  = "exploitPublishDate"
@@ -93,6 +95,8 @@ type Writes struct {
 	Nodes         []NodeWrite
 	Rels          []RelWrite
 	RecomputeCVEs []string // Vulnerabilities whose exploitability must be recomputed
+	// Merges run first in Apply, before Nodes and Rels (see alias.go).
+	Merges []MergeWrite
 }
 
 // Counts are the per-batch counters. Created, Updated, Unchanged, and Skipped
@@ -130,6 +134,10 @@ type planner struct {
 	recs  []change.Record
 	cnt   Counts
 	recom map[string]struct{}
+	// merges are the planned Vulnerability merges; gone holds the merged-away
+	// keys, which no longer exist for the rest of the batch (alias.go).
+	merges []MergeWrite
+	gone   map[resolve.Key]bool
 	// per-record flags
 	created, changed bool
 }
@@ -141,6 +149,7 @@ func Plan(existing State, desired Batch, rc RunContext) (Writes, []change.Record
 		rc: rc, st: existing,
 		nodes: map[resolve.Key]*nodeW{}, rels: map[RelID]*relW{},
 		out: map[resolve.Key][]RelID{}, recom: map[string]struct{}{},
+		gone: map[resolve.Key]bool{},
 	}
 	for id := range existing.Rels {
 		p.out[id.From] = append(p.out[id.From], id)
@@ -169,11 +178,12 @@ func Plan(existing State, desired Batch, rc RunContext) (Writes, []change.Record
 		w.RecomputeCVEs = append(w.RecomputeCVEs, id)
 	}
 	sort.Strings(w.RecomputeCVEs)
+	w.Merges = p.merges
 	return w, p.recs, p.cnt
 }
 
 func (p *planner) record(d Desired) {
-	n := d.N
+	n, ap := expandAdvisory(d.N)
 	if len(n.Gate) > 0 && !p.gateOpen(n.Gate) {
 		p.cnt.Skipped++
 		return
@@ -182,6 +192,9 @@ func (p *planner) record(d Desired) {
 		p.cnt.Missing++
 	}
 	p.created, p.changed = false, false
+	if ap != nil {
+		n = p.aliasStep(ap, n)
+	}
 	for _, e := range n.Entities {
 		p.entity(e, d.ID)
 	}
@@ -216,6 +229,9 @@ func (p *planner) gateOpen(refs []source.Ref) bool {
 // node returns the working node, loading it from the existing state, or nil
 // when the node exists neither in the graph nor in this batch.
 func (p *planner) node(k resolve.Key) *nodeW {
+	if p.gone[k] {
+		return nil
+	}
 	if n := p.nodes[k]; n != nil {
 		return n
 	}

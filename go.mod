@@ -9,6 +9,7 @@ require (
 	github.com/docker/go-connections v0.5.0
 	github.com/neo4j/neo4j-go-driver/v5 v5.28.4
 	github.com/oklog/ulid/v2 v2.1.2
+	github.com/package-url/packageurl-go v0.1.7
 	github.com/testcontainers/testcontainers-go v0.35.0
 )
 

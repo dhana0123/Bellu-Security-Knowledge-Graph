@@ -105,6 +105,27 @@ const (
 	RefFixCommit RefKind = "fixcommit"
 )
 
+// Reference kinds of Phases 2 and 3 (Requirements 9.10 to 9.12, 14 to 17).
+const (
+	// RefPackage is a package URL (purl). Resolves to the Package keyed by
+	// the canonical purl WITHOUT version, qualifiers, or subpath. Versions go
+	// on AFFECTS_PACKAGE properties.
+	RefPackage RefKind = "package"
+	// RefAdvisory is an advisory id: GHSA-xxxx-xxxx-xxxx or an OSV id
+	// <PREFIX>-<rest> (PYSEC-, GO-, RUSTSEC-, OSV-, ...). Resolves to the
+	// Vulnerability keyed by the advisory id, unless the record carries
+	// Normalized.Advisory, which re-targets it (see Advisory).
+	RefAdvisory RefKind = "advisory"
+	// RefCAPEC is CAPEC-<n> or a bare number; resolves to the AttackPattern.
+	RefCAPEC RefKind = "capec"
+	// RefTechnique is an ATT&CK technique id T1234 or T1234.001; resolves to
+	// the Technique.
+	RefTechnique RefKind = "technique"
+	// RefAtlas is an ATLAS technique id AML.T0000 or AML.T0000.000; resolves
+	// to the AtlasTechnique.
+	RefAtlas RefKind = "atlas"
+)
+
 // Ref points at a node by its raw source form. The resolver turns it into a
 // canonical key. MustExist means the node is never created: when it is
 // absent, the relationship is dropped and counted as unresolved.
@@ -157,4 +178,40 @@ type Normalized struct {
 	// Missing is set when the record lacked a mappable field.
 	Missing bool
 	Notes   []Note
+	// Advisory is set by advisory sources (OSV, GHSA). The pipeline applies
+	// the alias rules of Requirement 9.4 to 9.9 generically; adapters never
+	// merge or re-key Vulnerabilities themselves.
+	Advisory *Advisory
+}
+
+// Advisory describes the advisory a record is about and its aliases.
+//
+// Semantics, applied by the upsert layer (see internal/upsert/alias.go):
+//
+// Every Entity and Rel endpoint (and Gate or Anchor) of the SAME record whose
+// Ref is {Kind: RefAdvisory, Raw: Advisory.ID} is rewritten to the target
+// Vulnerability(ies):
+//
+//   - CVEs has no valid CVE id: the target is the Vulnerability keyed by the
+//     advisory id (created if missing). OtherAliases are stored in `aliases`.
+//   - CVEs has exactly one valid CVE id: the target is that CVE's
+//     Vulnerability (created if NVD has not loaded it yet). The advisory id
+//     and OtherAliases are added to its `aliases` (unique, at most 100). If a
+//     Vulnerability keyed by the advisory id already exists it is merged into
+//     the CVE node in the same transaction and a `vulnerabilityMerged`
+//     Change_Record is written.
+//   - CVEs has two or more valid ids: the record attaches to each CVE
+//     Vulnerability, nothing is merged, and an `aliasConflict` Change_Record
+//     names the ids.
+//
+// Refs of other advisory ids are not rewritten. A record without Advisory
+// keeps RefAdvisory refs as the advisory-keyed Vulnerability.
+type Advisory struct {
+	// ID is the advisory id as the source writes it (GHSA-... or OSV id).
+	ID string
+	// CVEs are the CVE aliases of the advisory. Invalid ids are counted as
+	// rejected and ignored.
+	CVEs []string
+	// OtherAliases are non-CVE aliases (other advisory ids, vendor ids).
+	OtherAliases []string
 }

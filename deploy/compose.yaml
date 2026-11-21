@@ -43,6 +43,12 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+    # Large adapter downloads (BSKG_CACHE_DIR). The root file system is
+    # read-only and /tmp lives in RAM, so the cache is a named volume. Docker
+    # copies the 65532-owned empty directory of the image into it on first use.
+    # Memory stays at 768m: adapters stream files from this volume.
+    volumes:
+      - bskg_cache:/var/cache/bskg
     mem_limit: 768m
     depends_on:
       neo4j:
@@ -77,6 +83,7 @@ services:
       retries: 6
 
 volumes:
+  bskg_cache:
   neo4j_data:
     driver: local
     driver_opts:

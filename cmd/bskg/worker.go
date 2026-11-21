@@ -87,7 +87,7 @@ func runWorker(args []string, stdout, stderr io.Writer) int {
 	log.Info("worker starting", "buildMode", dec.Mode, "sampleLimit", dec.Limit, "sampleOrder", opts.Order)
 
 	q := &worker.Queue{
-		Jobs:  buildJobs(c, cfg.BatchSize, log),
+		Jobs:  buildJobs(c, cfg, log),
 		Store: worker.GraphStore{G: c},
 		Opts:  opts,
 		Log:   log,
@@ -129,15 +129,14 @@ func runWorker(args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
-// buildJobs returns the build queue. A source job runs pipeline.Run for the
-// registered adapter and fails with ErrNotImplemented until its adapter is
-// registered (tasks 6 to 8).
-func buildJobs(c *graph.Client, batch int, log *slog.Logger) []worker.Job {
-	registerAdapters()
+// buildJobs returns the build queue: migrate, cwe, nvd-catch-up, exploitdb,
+// then each enabled and registered later source in worker.SourceJobs order.
+// The job name is the adapter name (nvd: "nvd-catch-up").
+func buildJobs(c *graph.Client, cfg *config.Config, log *slog.Logger) []worker.Job {
+	registerAdapters(cfg)
 	activeGraph.Store(c)
 	store := pipeline.NewGraphStore(c)
-	reg := pipeline.Default
-	return []worker.Job{
+	jobs := []worker.Job{
 		{Name: worker.JobMigrate, BuildState: worker.StateMigrating, Run: func(ctx context.Context, _ worker.RunOptions) error {
 			files, err := migrate.Embedded()
 			if err != nil {
@@ -147,21 +146,47 @@ func buildJobs(c *graph.Client, batch int, log *slog.Logger) []worker.Job {
 			_, err = r.Run(ctx)
 			return err
 		}},
-		{Name: worker.JobCWE, BuildState: worker.StateLoadingCWE, Run: syncJob(reg, store, "cwe", batch, log)},
-		{Name: worker.JobNVD, BuildState: worker.StateNVDCatchUp, ModeSpecific: true, Run: syncJob(reg, store, "nvd", batch, log)},
-		{Name: worker.JobExploits, BuildState: worker.StateLoadingExploit, ModeSpecific: true, Run: syncJob(reg, store, "exploitdb", batch, log)},
 	}
+	return append(jobs, sourceJobs(pipeline.Default, store, cfg.EnabledSources, cfg.BatchSize, log)...)
 }
 
-// dailySync runs the enabled, registered sources in order. Each run is
+// sourceJobs returns the queue jobs of the sources. The first three (cwe, nvd,
+// exploitdb) are always listed. Another source is listed when it is enabled
+// and its adapter is registered; an enabled source without an adapter is
+// skipped with a warning.
+func sourceJobs(reg *pipeline.Registry, store pipeline.Store, enabled []string, batch int, log *slog.Logger) []worker.Job {
+	on := map[string]bool{}
+	for _, n := range enabled {
+		on[n] = true
+	}
+	var jobs []worker.Job
+	for _, sj := range worker.SourceJobs {
+		if !worker.IsCoreSource(sj.Source) {
+			if !on[sj.Source] {
+				continue
+			}
+			if _, ok := reg.Get(sj.Source); !ok {
+				log.Warn("source is enabled but no adapter is registered; skipped", "source", sj.Source)
+				continue
+			}
+		}
+		jobs = append(jobs, worker.Job{
+			Name: sj.Job, BuildState: sj.BuildState, ModeSpecific: sj.ModeSpecific,
+			Run: syncJob(reg, store, sj.Source, batch, log),
+		})
+	}
+	return jobs
+}
+
+// dailySync runs the enabled, registered sources in worker.SourceJobs order. Each run is
 // independent: one failure does not stop the others (Requirement 3.10). It
 // returns the joined errors.
 func dailySync(ctx context.Context, reg *pipeline.Registry, store pipeline.Store, sources []string, batch int, log *slog.Logger) error {
 	var errs []error
-	for _, name := range sources {
+	for _, name := range worker.OrderedSources(sources) {
 		ad, ok := reg.Get(name)
 		if !ok {
-			log.Info("daily sync: no adapter registered; skipped", "source", name)
+			log.Warn("daily sync: source is enabled but no adapter is registered; skipped", "source", name)
 			continue
 		}
 		if _, err := pipeline.Run(ctx, store, ad, pipeline.Options{BatchSize: batch, Log: log}); err != nil {

@@ -67,9 +67,21 @@ docker compose up -d
 ```
 
 The worker runs the build queue on an empty volume without further commands:
-`migrate`, `cwe`, `nvd-catch-up`, `exploitdb`. `buildState` reports the running
-job (`migrating`, `loading_cwe`, `nvd_catch_up`, `loading_exploits`) and
-`ready` when the queue is complete.
+`migrate`, `cwe`, `nvd-catch-up`, `exploitdb`, then each source in
+`BSKG_ENABLED_SOURCES` that has a registered adapter, in the order `attack`,
+`atlas`, `capec`, `kev`, `epss`, `osv`, `ghsa` (an enabled source without an
+adapter is skipped with a warning). `buildState` reports the running job
+(`migrating`, `loading_cwe`, `nvd_catch_up`, `loading_exploits`,
+`loading_attack`, `loading_atlas`, `loading_capec`, `loading_kev`,
+`loading_epss`, `loading_osv`, `loading_ghsa`) and `ready` when the queue is
+complete. The daily schedule runs every enabled registered source in the same
+order, each run independent of the others.
+
+Large adapter downloads go to `BSKG_CACHE_DIR` (default `/var/cache/bskg`),
+the `bskg_cache` named volume of the worker. It sits on the root disk
+(`/var/lib/docker/volumes`); adapters keep one file per name and replace it on
+the next download. The worker keeps `mem_limit: 768m`: adapters stream files
+from this volume and never load a download into memory.
 
 ### Sample build first
 

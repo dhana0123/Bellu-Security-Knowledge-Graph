@@ -58,7 +58,7 @@ func runSync(args []string, stdout, stderr io.Writer) int {
 	}
 	fs := flag.NewFlagSet("sync", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	srcName := fs.String("source", "", "source to sync: cwe, nvd, or exploitdb (default: all enabled sources)")
+	srcName := fs.String("source", "", "source to sync, an adapter name such as cwe, nvd, or exploitdb (default: all enabled sources)")
 	since := fs.String("since", "", "window start for this run, RFC 3339 timestamp")
 	replay := fs.Bool("replay-dead-letter", false, "reprocess the dead letters of the source instead of fetching")
 	if err := fs.Parse(args); err != nil {
@@ -87,10 +87,10 @@ func runSync(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "bskg: sync: %v\n", err)
 		return 1
 	}
-	registerAdapters()
+	registerAdapters(cfg)
 
 	explicit := *srcName != ""
-	names := cfg.EnabledSources
+	names := worker.OrderedSources(cfg.EnabledSources)
 	if explicit {
 		names = []string{*srcName}
 	}

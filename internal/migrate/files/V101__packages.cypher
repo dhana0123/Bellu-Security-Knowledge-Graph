@@ -1,0 +1,1 @@
+CREATE CONSTRAINT UniquePackagePurl IF NOT EXISTS FOR (p:Package) REQUIRE p.purl IS UNIQUE

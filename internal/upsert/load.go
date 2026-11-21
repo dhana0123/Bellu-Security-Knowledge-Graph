@@ -37,6 +37,13 @@ func Load(ctx context.Context, tx neo4j.ManagedTransaction, b Batch) (State, err
 		relFrom[typ][k.Value] = struct{}{}
 	}
 	for _, d := range b {
+		n, ap := expandAdvisory(d.N)
+		d.N = n
+		if ap != nil {
+			for _, k := range advisoryKeys(ap) {
+				addNode(source.Ref{Kind: refKindOf(k), Raw: k.Value})
+			}
+		}
 		for _, r := range d.N.Gate {
 			addNode(r)
 		}
@@ -134,4 +141,12 @@ func setList(s map[string]struct{}) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// refKindOf returns the ref kind that resolves to a Vulnerability key.
+func refKindOf(k resolve.Key) source.RefKind {
+	if _, err := resolve.CVE(k.Value); err == nil {
+		return source.RefCVE
+	}
+	return source.RefAdvisory
 }

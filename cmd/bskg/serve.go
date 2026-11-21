@@ -74,7 +74,20 @@ func runServe(args []string, stdout, stderr io.Writer) int {
 	defer g.Close(context.WithoutCancel(ctx))
 
 	q := api.ReadQueries(g)
+	// The schema phase follows the applied migrations (V1xx is phase 2, V2xx
+	// phase 3). It is read once here and refreshed with the migration cache.
+	phase := api.MigrationPhase(q)
+	startPhase := 1
+	pctx, pcancel := context.WithTimeout(ctx, 10*time.Second)
+	if v, err := phase(pctx); err == nil {
+		startPhase = v
+	} else {
+		log.Warn("schema phase unavailable at start; assuming phase 1", "error", err.Error())
+	}
+	pcancel()
 	srv := api.New(api.Config{
+		MaxPhase:     startPhase,
+		Phase:        phase,
 		Version:      version,
 		Auth:         apikey.NewVerifier(apikey.NewStore(g, nil), nil),
 		Limiter:      api.NewKeyRateLimiter(cfg.APIRateLimit, nil),

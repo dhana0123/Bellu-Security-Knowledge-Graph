@@ -8,6 +8,7 @@ import (
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
 	"github.com/bellu/bskg/internal/graph"
+	"github.com/bellu/bskg/internal/model"
 )
 
 // All Cypher here is constant and read-only. Label and relationship names
@@ -191,6 +192,11 @@ func first(l []string) string {
 // CollectIntegrity gathers the catalog, duplicate, endpoint, and REJECT data.
 func CollectIntegrity(ctx context.Context, c *graph.Client) (Inputs, error) {
 	var in Inputs
+	top, err := readInt(ctx, c, maxMigrationQuery)
+	if err != nil {
+		return in, fmt.Errorf("applied migrations: %w", err)
+	}
+	in.Phase = model.PhaseOfMigration(int(top))
 	rows, err := readAll(ctx, c, showConstraintsQuery)
 	if err != nil {
 		return in, fmt.Errorf("show constraints: %w", err)
@@ -212,7 +218,7 @@ func CollectIntegrity(ctx context.Context, c *graph.Client) (Inputs, error) {
 		ci.State, _ = r.Values[2].(string)
 		in.Indexes = append(in.Indexes, ci)
 	}
-	for _, d := range dupQueries {
+	for _, d := range append(append([]dupQuery(nil), dupQueries...), phaseDupQueries(in.Phase)...) {
 		rows, err := readAll(ctx, c, d.cypher)
 		if err != nil {
 			return in, fmt.Errorf("duplicates %s: %w", d.label, err)
@@ -225,7 +231,7 @@ func CollectIntegrity(ctx context.Context, c *graph.Client) (Inputs, error) {
 		}
 		in.Duplicates = append(in.Duplicates, NewDuplicateCheck(d.label, d.prop, g))
 	}
-	for _, e := range endpointQueries {
+	for _, e := range append(append([]endpointQuery(nil), endpointQueries...), phaseEndpointQueries(in.Phase)...) {
 		n, err := readInt(ctx, c, e.count)
 		if err != nil {
 			return in, fmt.Errorf("endpoints %s: %w", e.rule.Type, err)

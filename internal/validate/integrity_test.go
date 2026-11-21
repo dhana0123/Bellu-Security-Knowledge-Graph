@@ -108,3 +108,38 @@ func TestNeo4j2025ConstraintType(t *testing.T) {
 		t.Fatal("a non-uniqueness constraint must fail")
 	}
 }
+
+func TestPhaseChecks(t *testing.T) {
+	if got := len(RequiredConstraintsFor(1)); got != len(RequiredConstraints) {
+		t.Errorf("phase 1 constraints = %d", got)
+	}
+	if got := len(RequiredConstraintsFor(2)); got != len(RequiredConstraints)+1 {
+		t.Errorf("phase 2 constraints = %d", got)
+	}
+	if got := len(RequiredConstraintsFor(3)); got != len(RequiredConstraints)+4 {
+		t.Errorf("phase 3 constraints = %d", got)
+	}
+	// A phase 3 graph without the V201 constraints fails; phase 1 ignores them.
+	var cat []CatalogConstraint
+	for _, r := range RequiredConstraintsFor(2) {
+		cat = append(cat, CatalogConstraint{Name: r.Name, Type: "UNIQUENESS", Label: r.Label, Prop: r.Prop})
+	}
+	failed := 0
+	for _, c := range CheckConstraintsFor(cat, 3) {
+		if !c.Passed {
+			failed++
+		}
+	}
+	if failed != 3 {
+		t.Errorf("failed = %d, want the 3 V201 constraints", failed)
+	}
+	if n := len(phaseDupQueries(3)); n != 4 {
+		t.Errorf("phase 3 duplicate queries = %d, want 4", n)
+	}
+	if n := len(phaseDupQueries(1)); n != 0 {
+		t.Errorf("phase 1 duplicate queries = %d", n)
+	}
+	if n := len(phaseEndpointQueries(3)); n != 5 {
+		t.Errorf("phase 3 endpoint queries = %d, want 5", n)
+	}
+}

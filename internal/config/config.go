@@ -7,10 +7,13 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/bellu/bskg/internal/resolve"
 )
 
 // Scope selects which groups of settings a subcommand needs validated.
@@ -52,6 +55,20 @@ const (
 	EnvSampleOrder         = "BSKG_SAMPLE_ORDER"
 	EnvGitHubToken         = "GITHUB_TOKEN"
 	EnvEPSSThreshold       = "BSKG_EPSS_CHANGE_THRESHOLD"
+	EnvOSVEcosystems       = "BSKG_OSV_ECOSYSTEMS"
+	EnvCacheDir            = "BSKG_CACHE_DIR"
+)
+
+// Defaults of the Phase 2 and 3 settings.
+const (
+	// DefaultEnabledSources lists every source; one without a registered
+	// adapter is skipped with a warning by the worker.
+	DefaultEnabledSources = "cwe,nvd,exploitdb,attack,atlas,capec,kev,epss,osv,ghsa"
+	// DefaultOSVEcosystems is every supported OSV ecosystem (resolve.OSVEcosystems).
+	DefaultOSVEcosystems = "npm,PyPI,Go,Maven,crates.io,RubyGems,NuGet,Packagist,Pub,Hex,GitHub Actions,SwiftURL"
+	// DefaultCacheDir is where adapters keep large downloads. It must be a
+	// writable volume: the worker root file system is read-only.
+	DefaultCacheDir = "/var/cache/bskg"
 )
 
 // Config holds validated settings. Fields outside the requested scopes are
@@ -86,6 +103,11 @@ type Config struct {
 	SampleOrder         string
 	GitHubToken         Secret
 	EPSSChangeThreshold float64
+	// OSVEcosystems are the OSV ecosystems to load, in the canonical spelling
+	// of resolve.OSVEcosystems, without duplicates.
+	OSVEcosystems []string
+	// CacheDir is the absolute directory for adapter downloads.
+	CacheDir string
 }
 
 // Secret holds a secret value and hides it from formatting.
@@ -183,7 +205,7 @@ func LoadFrom(env Env, scopes ...Scope) (*Config, error) {
 		c.BatchSize = p.intRange(EnvBatchSize, 500, 1, 10000)
 		c.NVDAPIKey = p.secret(EnvNVDAPIKey, false)
 		c.GitHubToken = p.secret(EnvGitHubToken, false)
-		c.EnabledSources = p.list(EnvEnabledSources, "cwe,nvd,exploitdb")
+		c.EnabledSources = p.list(EnvEnabledSources, DefaultEnabledSources)
 		for _, s := range c.EnabledSources {
 			if !validSourceName(s) {
 				p.add(EnvEnabledSources, "contains an invalid source name")
@@ -199,12 +221,43 @@ func LoadFrom(env Env, scopes ...Scope) (*Config, error) {
 		c.SampleLimit = p.sampleLimit()
 		c.SampleOrder = p.sampleOrder()
 		c.EPSSChangeThreshold = p.floatRange(EnvEPSSThreshold, 0.01, 0, 1)
+		c.OSVEcosystems = p.ecosystems()
+		c.CacheDir = p.str(EnvCacheDir, DefaultCacheDir)
+		if !filepath.IsAbs(c.CacheDir) {
+			p.add(EnvCacheDir, "must be an absolute path")
+		}
 	}
 
 	if len(p.issues) > 0 {
 		return nil, &ValidationError{Issues: p.issues}
 	}
 	return c, nil
+}
+
+// ecosystems parses BSKG_OSV_ECOSYSTEMS against the supported OSV ecosystems.
+// Matching ignores letter case; the result uses the canonical spelling.
+func (p *parser) ecosystems() []string {
+	canon := map[string]string{}
+	for _, e := range resolve.OSVEcosystems() {
+		canon[strings.ToLower(e)] = e
+	}
+	var out []string
+	seen := map[string]bool{}
+	for _, v := range p.list(EnvOSVEcosystems, DefaultOSVEcosystems) {
+		c, ok := canon[strings.ToLower(v)]
+		if !ok {
+			p.add(EnvOSVEcosystems, "contains an unsupported ecosystem; supported: "+strings.Join(resolve.OSVEcosystems(), ", "))
+			return nil
+		}
+		if !seen[c] {
+			seen[c] = true
+			out = append(out, c)
+		}
+	}
+	if len(out) == 0 {
+		p.add(EnvOSVEcosystems, "must name at least one ecosystem")
+	}
+	return out
 }
 
 func validSourceName(s string) bool {

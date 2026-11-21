@@ -3,6 +3,8 @@ package api
 import (
 	"context"
 	"time"
+
+	"github.com/bellu/bskg/internal/model"
 )
 
 // OpsConfig holds the dependencies of the status, statistics, and
@@ -38,7 +40,7 @@ func OpsRoutes(s *Server, c OpsConfig) {
 			var res *StatsResult
 			err := c.Batch(ctx, func(q queryFunc) error {
 				var err error
-				res, err = computeStats(ctx, q, s.cfg.Now())
+				res, err = computeStats(ctx, q, s.cfg.Now(), s.maxPhase(ctx))
 				return err
 			})
 			return res, err
@@ -50,7 +52,7 @@ func OpsRoutes(s *Server, c OpsConfig) {
 			var res *overviewResult
 			err := c.Batch(ctx, func(q queryFunc) error {
 				var err error
-				res, err = computeOverview(ctx, q, limit)
+				res, err = computeOverview(ctx, q, limit, s.maxPhase(ctx))
 				return err
 			})
 			return res, err
@@ -75,5 +77,21 @@ func MigrationPending(q queryFunc, want int) func(ctx context.Context) (bool, er
 		}
 		v, ok := rows[0]["version"].(int64)
 		return !ok || int(v) < want, nil
+	}
+}
+
+// MigrationPhase returns a Config.Phase function: the schema phase of the
+// highest applied Migration version (V1xx is phase 2, V2xx phase 3).
+func MigrationPhase(q queryFunc) func(ctx context.Context) (int, error) {
+	return func(ctx context.Context) (int, error) {
+		rows, err := q(ctx, cypherMigrationVersion, nil)
+		if err != nil {
+			return 0, err
+		}
+		if len(rows) == 0 {
+			return 1, nil
+		}
+		v, _ := rows[0]["version"].(int64)
+		return model.PhaseOfMigration(int(v)), nil
 	}
 }

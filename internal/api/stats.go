@@ -17,7 +17,8 @@ import (
 	"github.com/bellu/bskg/internal/model"
 )
 
-// Count queries are generated at start-up from the schema registry. Label and
+// Count queries are generated at start-up from the schema registry for every
+// phase; computeStats runs only those up to the applied phase. Label and
 // type names come from internal/model, never from a request.
 var (
 	labelCountQueries = map[string]string{}
@@ -26,18 +27,16 @@ var (
 
 func init() {
 	for _, l := range model.Labels {
-		if l.Kind == model.Domain && l.Phase <= 1 {
+		if l.Kind == model.Domain {
 			q := fmt.Sprintf("MATCH (n:%s) RETURN count(n) AS n", l.Name)
 			labelCountQueries[l.Name] = q
 			allQueries = append(allQueries, q)
 		}
 	}
 	for _, r := range model.Rels {
-		if r.Phase <= 1 {
-			q := fmt.Sprintf("MATCH ()-[r:%s]->() RETURN count(r) AS n", r.Name)
-			relCountQueries[r.Name] = q
-			allQueries = append(allQueries, q)
-		}
+		q := fmt.Sprintf("MATCH ()-[r:%s]->() RETURN count(r) AS n", r.Name)
+		relCountQueries[r.Name] = q
+		allQueries = append(allQueries, q)
 	}
 }
 
@@ -97,8 +96,9 @@ func asInt(v any) int64 {
 }
 
 // computeStats runs every statistics query through run (one read transaction
-// in production) and derives the result.
-func computeStats(ctx context.Context, run queryFunc, now time.Time) (*StatsResult, error) {
+// in production) and derives the result. Labels and relationship types of a
+// phase above maxPhase are not counted.
+func computeStats(ctx context.Context, run queryFunc, now time.Time, maxPhase int) (*StatsResult, error) {
 	res := &StatsResult{GeneratedAt: now.UTC()}
 	count := func(q string) (int64, error) {
 		rows, err := run(ctx, q, nil)
@@ -112,7 +112,7 @@ func computeStats(ctx context.Context, run queryFunc, now time.Time) (*StatsResu
 	}
 	for _, l := range model.Labels {
 		q, ok := labelCountQueries[l.Name]
-		if !ok {
+		if !ok || l.Phase > maxPhase {
 			continue
 		}
 		n, err := count(q)
@@ -123,7 +123,7 @@ func computeStats(ctx context.Context, run queryFunc, now time.Time) (*StatsResu
 	}
 	for _, r := range model.Rels {
 		q, ok := relCountQueries[r.Name]
-		if !ok {
+		if !ok || r.Phase > maxPhase {
 			continue
 		}
 		n, err := count(q)

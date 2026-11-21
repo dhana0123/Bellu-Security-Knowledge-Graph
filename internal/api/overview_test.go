@@ -217,7 +217,7 @@ func nodeIDs(r *overviewResult) []string {
 
 func TestComputeOverviewWholeGraph(t *testing.T) {
 	g := newFakeGraph()
-	res, err := computeOverview(context.Background(), g.run, 5000)
+	res, err := computeOverview(context.Background(), g.run, 5000, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -258,7 +258,7 @@ func TestComputeOverviewWholeGraph(t *testing.T) {
 func TestComputeOverviewRankedSubset(t *testing.T) {
 	g := newFakeGraph()
 	// 9 nodes, limit 8: ranked mode. Seeds CVE-2, CVE-1, CVE-4, CVE-3 and their direct neighbours only.
-	res, err := computeOverview(context.Background(), g.run, 8)
+	res, err := computeOverview(context.Background(), g.run, 8, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -270,7 +270,7 @@ func TestComputeOverviewRankedSubset(t *testing.T) {
 		t.Fatalf("edges=%d totals %d %d", len(res.Edges), res.TotalNodes, res.TotalRels)
 	}
 	// A small cap keeps the top-ranked vulnerability and its neighbours first.
-	res, err = computeOverview(context.Background(), g.run, 3)
+	res, err = computeOverview(context.Background(), g.run, 3, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -288,7 +288,7 @@ func TestComputeOverviewEdgeCapTruncates(t *testing.T) {
 	for i := 0; i < 12; i++ {
 		g.rels = append(g.rels, fakeRel{typ: "CHILD_OF", from: "W1", to: "W2", viewID: fmt.Sprint(i)})
 	}
-	res, err := computeOverview(context.Background(), g.run, 2)
+	res, err := computeOverview(context.Background(), g.run, 2, 1)
 	if err != nil {
 		t.Fatal(err)
 	}

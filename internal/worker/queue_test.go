@@ -39,6 +39,13 @@ var queueDef = []struct {
 	{JobCWE, StateLoadingCWE, false},
 	{JobNVD, StateNVDCatchUp, true},
 	{JobExploits, StateLoadingExploit, true},
+	{"attack", StateLoadingAttack, false},
+	{"atlas", StateLoadingAtlas, false},
+	{"capec", StateLoadingCAPEC, false},
+	{"kev", StateLoadingKEV, true},
+	{"epss", StateLoadingEPSS, true},
+	{"osv", StateLoadingOSV, true},
+	{"ghsa", StateLoadingGHSA, true},
 }
 
 type harness struct {
@@ -84,10 +91,14 @@ func TestHappyPath(t *testing.T) {
 	if err != nil || !out.Complete {
 		t.Fatalf("%+v %v", out, err)
 	}
-	if !reflect.DeepEqual(h.calls, []string{JobMigrate, JobCWE, JobNVD, JobExploits}) {
+	if !reflect.DeepEqual(h.calls, jobNames(false)) {
 		t.Fatal(h.calls)
 	}
-	want := []string{StateMigrating, StateLoadingCWE, StateNVDCatchUp, StateLoadingExploit, StateReady}
+	var want []string
+	for _, d := range queueDef {
+		want = append(want, d.state)
+	}
+	want = append(want, StateReady)
 	if !reflect.DeepEqual(h.st.states, want) || !h.st.complete {
 		t.Fatal(h.st.states)
 	}
@@ -150,7 +161,7 @@ func TestRestartSkipsSucceeded(t *testing.T) {
 	if out, _ := h.q.Run(context.Background()); !out.Complete {
 		t.Fatal("not complete")
 	}
-	if !reflect.DeepEqual(h.calls, []string{JobCWE, JobNVD, JobExploits}) {
+	if !reflect.DeepEqual(h.calls, jobNames(false)[1:]) {
 		t.Fatal(h.calls)
 	}
 }
@@ -167,7 +178,7 @@ func TestSampleToFullContinuation(t *testing.T) {
 	if out, _ := h.q.Run(context.Background()); !out.Complete {
 		t.Fatal("full run incomplete")
 	}
-	if !reflect.DeepEqual(h.calls, []string{JobNVD, JobExploits}) {
+	if !reflect.DeepEqual(h.calls, jobNames(true)) {
 		t.Fatalf("calls %v", h.calls)
 	}
 	// A third run with the same mode does nothing and writes no job state.
@@ -182,7 +193,7 @@ func TestChangedSampleLimitReRunsModeJobs(t *testing.T) {
 	newHarness(st, nil, sample).q.Run(context.Background())
 	h := newHarness(st, nil, RunOptions{Mode: "sample", Limit: 50})
 	h.q.Run(context.Background())
-	if !reflect.DeepEqual(h.calls, []string{JobNVD, JobExploits}) {
+	if !reflect.DeepEqual(h.calls, jobNames(true)) {
 		t.Fatalf("calls %v", h.calls)
 	}
 }
@@ -193,7 +204,7 @@ func TestChangedSampleOrderReRunsModeJobs(t *testing.T) {
 	latest := RunOptions{Mode: "sample", Limit: 1000, Order: "latest"}
 	h := newHarness(st, nil, latest)
 	h.q.Run(context.Background())
-	if !reflect.DeepEqual(h.calls, []string{JobNVD, JobExploits}) {
+	if !reflect.DeepEqual(h.calls, jobNames(true)) {
 		t.Fatalf("calls %v", h.calls)
 	}
 	if st.jobs[JobNVD].Order != "latest" {
@@ -322,4 +333,16 @@ func TestPropertyQueueSemantics(t *testing.T) {
 			t.Fatal("ready reported for a stopped queue")
 		}
 	})
+}
+
+// jobNames returns the queue job names in order; modeOnly keeps the
+// mode-specific jobs.
+func jobNames(modeOnly bool) []string {
+	var out []string
+	for _, d := range queueDef {
+		if !modeOnly || d.modeSpecific {
+			out = append(out, d.name)
+		}
+	}
+	return out
 }

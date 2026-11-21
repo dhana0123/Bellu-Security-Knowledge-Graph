@@ -38,3 +38,30 @@ func TestPhaseOneSchema(t *testing.T) {
 		}
 	}
 }
+
+func TestPhaseOfMigration(t *testing.T) {
+	for v, want := range map[int]int{1: 1, 3: 1, 99: 1, 100: 2, 101: 2, 199: 2, 200: 3, 201: 3, 999: 3} {
+		if got := PhaseOfMigration(v); got != want {
+			t.Errorf("PhaseOfMigration(%d) = %d, want %d", v, got, want)
+		}
+	}
+	if PhaseOfMigrations(nil) != 1 || PhaseOfMigrations([]int{1, 3, 101}) != 2 || PhaseOfMigrations([]int{201, 3, 101}) != 3 {
+		t.Error("PhaseOfMigrations must use the highest version")
+	}
+}
+
+func TestLaterPhaseSchema(t *testing.T) {
+	if r, ok := RelByName("ADAPTED_FROM"); !ok || r.From != "AtlasTechnique" || r.To != "Technique" || r.Phase != 3 {
+		t.Errorf("ADAPTED_FROM = %+v %v", r, ok)
+	}
+	for name, phase := range map[string]int{"Package": 2, "AttackPattern": 3, "Technique": 3, "AtlasTechnique": 3} {
+		if l, ok := LabelByName(name); !ok || l.Phase != phase {
+			t.Errorf("%s = %+v", name, l)
+		}
+	}
+	for name, phase := range map[string]int{"AFFECTS_PACKAGE": 2, "HOSTED_IN": 2, "RELATED_ATTACK_PATTERN": 3, "MAPS_TO_TECHNIQUE": 3} {
+		if r, ok := RelByName(name); !ok || r.Phase != phase {
+			t.Errorf("%s = %+v", name, r)
+		}
+	}
+}

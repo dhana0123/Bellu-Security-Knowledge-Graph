@@ -18,8 +18,12 @@ COPY . .
 COPY --from=ui /ui/dist ./ui/dist
 RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
     go build -trimpath -ldflags "-s -w -X main.version=$VERSION" -o /out/bskg ./cmd/bskg
+# Empty adapter cache directory (BSKG_CACHE_DIR). distroless has no shell, so
+# it is created here and copied with its owner into the final image.
+RUN mkdir -p /out/cache
 
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=build /out/bskg /bskg
+COPY --from=build --chown=65532:65532 /out/cache /var/cache/bskg
 USER 65532:65532
 ENTRYPOINT ["/bskg"]

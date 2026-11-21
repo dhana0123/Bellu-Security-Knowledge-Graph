@@ -37,6 +37,12 @@ RETURN properties(v) AS props,
   [(v)-[:REFERS_TO_REPOSITORY]->(rp:Repository) | {url: rp.url, host: rp.host}] AS repositories,
   [(f:FixCommit)-[:FIXES]->(v) | {sha: f.sha, repoUrl: f.repoUrl, url: f.url}] AS fixCommits`
 
+	// Alias lookup: the Vulnerability whose `aliases` list holds one of the
+	// candidate ids (an advisory id or other alias). Used only when no node
+	// has the id as cveID. The lowest cveID wins when several match.
+	cypherVulnerabilityByAlias = `
+MATCH (v:Vulnerability) WHERE any(a IN $aliases WHERE a IN v.aliases)
+RETURN v.cveID AS cveID ORDER BY v.cveID ASC LIMIT 1`
 	// Vulnerability existence and sources for history and as-of routes.
 	cypherVulnerabilityExists = `MATCH (v:Vulnerability {cveID: $id}) RETURN v.cveID AS cveID, properties(v) AS props`
 
@@ -207,7 +213,7 @@ RETURN count(v) AS cves, count(CASE WHEN coalesce(v.rejected, false) = false THE
 // allQueries lists every Cypher constant for the read-only lint.
 var allQueries = []string{
 	cypherBuildMeta, cypherLastRuns,
-	cypherVulnerabilityByID, cypherVulnerabilityExists,
+	cypherVulnerabilityByID, cypherVulnerabilityByAlias, cypherVulnerabilityExists,
 	cypherWeaknessByID, cypherWeaknessVulns,
 	cypherProductExact, cypherProductFold, cypherProductByKey, cypherProductVulns,
 	cypherVendorExact, cypherVendorFold, cypherVendorByKey, cypherVendorVulns,

@@ -7,6 +7,15 @@ const (
 	TypeEntityCreated       = "entityCreated"
 	TypePropertyChanged     = "propertyChanged"
 	TypeRelationshipCreated = "relationshipCreated"
+	// TypeVulnerabilityMerged: an advisory-keyed Vulnerability was merged into
+	// the Vulnerability of its single CVE alias (Requirement 9.7). EntityKey is
+	// the surviving key, OldValue the JSON list of both prior keys, NewValue
+	// the JSON string of the surviving key.
+	TypeVulnerabilityMerged = "vulnerabilityMerged"
+	// TypeAliasConflict: an advisory names two or more CVE ids; it was attached
+	// to each and nothing was merged (Requirement 9.9). EntityKey is the
+	// advisory-keyed Vulnerability key, NewValue the JSON list of the CVE ids.
+	TypeAliasConflict = "aliasConflict"
 )
 
 // Builder fills the fields shared by every record of one run.

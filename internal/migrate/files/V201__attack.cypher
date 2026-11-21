@@ -1,0 +1,5 @@
+CREATE CONSTRAINT UniqueAttackPatternID IF NOT EXISTS FOR (a:AttackPattern) REQUIRE a.capecID IS UNIQUE
+;
+CREATE CONSTRAINT UniqueTechniqueID IF NOT EXISTS FOR (t:Technique) REQUIRE t.attackID IS UNIQUE
+;
+CREATE CONSTRAINT UniqueAtlasTechniqueID IF NOT EXISTS FOR (t:AtlasTechnique) REQUIRE t.atlasID IS UNIQUE

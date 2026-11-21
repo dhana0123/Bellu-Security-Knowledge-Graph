@@ -54,7 +54,8 @@ func TestWorkerDefaults(t *testing.T) {
 	}
 	if c.BatchSize != 500 || c.SampleLimit != 0 || c.StaleAfterHours != 48 ||
 		c.ChangeRetentionDays != 365 || c.NVDSyncTime != "03:00" || c.EPSSChangeThreshold != 0.01 ||
-		strings.Join(c.EnabledSources, ",") != "cwe,nvd,exploitdb" {
+		strings.Join(c.EnabledSources, ",") != "cwe,nvd,exploitdb,attack,atlas,capec,kev,epss,osv,ghsa" ||
+		strings.Join(c.OSVEcosystems, ",") != DefaultOSVEcosystems || c.CacheDir != "/var/cache/bskg" {
 		t.Fatalf("bad defaults: %+v", c)
 	}
 }
@@ -344,5 +345,37 @@ func TestStatsSettings(t *testing.T) {
 		if (err == nil) != tc.ok {
 			t.Errorf("%s: err=%v", tc.name, err)
 		}
+	}
+}
+
+func TestOSVEcosystemsAndCacheDir(t *testing.T) {
+	base := map[string]string{EnvNeo4jPassword: "p"}
+	with := func(extra map[string]string) (*Config, error) {
+		m := map[string]string{}
+		for k, v := range base {
+			m[k] = v
+		}
+		for k, v := range extra {
+			m[k] = v
+		}
+		return LoadFrom(Env{Getenv: func(k string) string { return m[k] }}, ScopeWorker)
+	}
+	c, err := with(map[string]string{EnvOSVEcosystems: " pypi, npm ,GO,npm", EnvCacheDir: "/data/cache"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(c.OSVEcosystems, ",") != "PyPI,npm,Go" || c.CacheDir != "/data/cache" {
+		t.Fatalf("got %v %q", c.OSVEcosystems, c.CacheDir)
+	}
+	_, err = with(map[string]string{EnvOSVEcosystems: "npm,Debian", EnvCacheDir: "relative/dir"})
+	got := settings(t, err)
+	if len(got) != 2 || got[0] != EnvCacheDir || got[1] != EnvOSVEcosystems {
+		t.Fatalf("settings %v", got)
+	}
+	if strings.Contains(err.Error(), "Debian") || strings.Contains(err.Error(), "relative") {
+		t.Fatalf("error leaks a value: %v", err)
+	}
+	if _, err := with(map[string]string{EnvOSVEcosystems: " , "}); err == nil {
+		t.Fatal("an empty list must fail")
 	}
 }

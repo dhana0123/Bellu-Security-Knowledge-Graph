@@ -52,7 +52,7 @@ var cypherOverviewNeighbours string
 
 func init() {
 	for _, l := range model.Labels {
-		if l.Kind != model.Domain || l.Phase > 1 {
+		if l.Kind != model.Domain {
 			continue
 		}
 		q1 := fmt.Sprintf("MATCH (n:%[1]s) RETURN n.%[2]s AS key, properties(n) AS props ORDER BY key LIMIT $limit", l.Name, l.Key)
@@ -61,9 +61,6 @@ func init() {
 		allQueries = append(allQueries, q1, q2)
 	}
 	for _, r := range model.Rels {
-		if r.Phase > 1 {
-			continue
-		}
 		from, _ := model.LabelByName(r.From)
 		to, _ := model.LabelByName(r.To)
 		q := fmt.Sprintf(`MATCH (a:%[1]s)-[r:%[2]s]->(b:%[3]s)
@@ -117,10 +114,10 @@ func numPtr(v any) *float64 {
 
 // computeOverview builds the overview with at most limit nodes. run is one
 // read transaction in production.
-func computeOverview(ctx context.Context, run queryFunc, limit int) (*overviewResult, error) {
+func computeOverview(ctx context.Context, run queryFunc, limit, maxPhase int) (*overviewResult, error) {
 	res := &overviewResult{}
 	for _, l := range model.Labels {
-		if q, ok := labelCountQueries[l.Name]; ok {
+		if q, ok := labelCountQueries[l.Name]; ok && l.Phase <= maxPhase {
 			rows, err := run(ctx, q, nil)
 			if err != nil {
 				return nil, err
@@ -131,7 +128,7 @@ func computeOverview(ctx context.Context, run queryFunc, limit int) (*overviewRe
 		}
 	}
 	for _, r := range model.Rels {
-		if q, ok := relCountQueries[r.Name]; ok {
+		if q, ok := relCountQueries[r.Name]; ok && r.Phase <= maxPhase {
 			rows, err := run(ctx, q, nil)
 			if err != nil {
 				return nil, err
@@ -146,10 +143,10 @@ func computeOverview(ctx context.Context, run queryFunc, limit int) (*overviewRe
 	var refs []nodeRef
 	var err error
 	if res.TotalNodes <= int64(limit) {
-		nodes, refs, err = overviewAllNodes(ctx, run, limit)
+		nodes, refs, err = overviewAllNodes(ctx, run, limit, maxPhase)
 	} else {
 		res.Truncated = true
-		nodes, refs, err = overviewRankedNodes(ctx, run, limit)
+		nodes, refs, err = overviewRankedNodes(ctx, run, limit, maxPhase)
 	}
 	if err != nil {
 		return nil, err
@@ -163,7 +160,7 @@ func computeOverview(ctx context.Context, run queryFunc, limit int) (*overviewRe
 		res.Truncated = true
 	}
 
-	edges, capped, err := overviewEdges(ctx, run, refs, nodes, limit)
+	edges, capped, err := overviewEdges(ctx, run, refs, nodes, limit, maxPhase)
 	if err != nil {
 		return nil, err
 	}
@@ -186,13 +183,13 @@ func makeNode(label string, key any, props map[string]any) (nodeRef, nbNode) {
 	return ref, nbNode{ID: ref.ID(), Type: label, Key: k, Label: cutRunes(k, maxNodeLabelLen), Properties: scalarProps(props)}
 }
 
-// overviewAllNodes reads every phase-1 domain node (at most limit+1 per label).
-func overviewAllNodes(ctx context.Context, run queryFunc, limit int) (map[string]nbNode, []nodeRef, error) {
+// overviewAllNodes reads every domain node up to maxPhase (at most limit+1 per label).
+func overviewAllNodes(ctx context.Context, run queryFunc, limit, maxPhase int) (map[string]nbNode, []nodeRef, error) {
 	nodes := map[string]nbNode{}
 	var refs []nodeRef
 	for _, l := range model.Labels {
 		q, ok := overviewNodeQueries[l.Name]
-		if !ok {
+		if !ok || l.Phase > maxPhase {
 			continue
 		}
 		rows, err := run(ctx, q, map[string]any{"limit": int64(limit + 1)})
@@ -213,7 +210,7 @@ func overviewAllNodes(ctx context.Context, run queryFunc, limit int) (map[string
 
 // overviewRankedNodes selects the ranked subset (see selectOverview) and reads
 // the properties of the selected nodes.
-func overviewRankedNodes(ctx context.Context, run queryFunc, limit int) (map[string]nbNode, []nodeRef, error) {
+func overviewRankedNodes(ctx context.Context, run queryFunc, limit, maxPhase int) (map[string]nbNode, []nodeRef, error) {
 	rows, err := run(ctx, cypherOverviewSeeds, map[string]any{"limit": int64(limit)})
 	if err != nil {
 		return nil, nil, err
@@ -231,7 +228,7 @@ func overviewRankedNodes(ctx context.Context, run queryFunc, limit int) (map[str
 	nbrs := map[string][]nodeRef{}
 	if len(cves) > 0 {
 		rows, err = run(ctx, cypherOverviewNeighbours, map[string]any{
-			"cves": cves, "domainLabels": model.DomainLabels(1),
+			"cves": cves, "domainLabels": model.DomainLabels(maxPhase),
 			"perSeed": int64(overviewPerSeed), "rowCap": int64(limit * overviewRowsPerNode),
 		})
 		if err != nil {
@@ -277,7 +274,7 @@ func overviewRankedNodes(ctx context.Context, run queryFunc, limit int) (map[str
 
 // overviewEdges reads the relationships among the selected nodes. capped is
 // true when the edge list was cut at limit * overviewEdgesPerNode.
-func overviewEdges(ctx context.Context, run queryFunc, refs []nodeRef, nodes map[string]nbNode, limit int) ([]nbEdge, bool, error) {
+func overviewEdges(ctx context.Context, run queryFunc, refs []nodeRef, nodes map[string]nbNode, limit, maxPhase int) ([]nbEdge, bool, error) {
 	keys := map[string][]any{}
 	for _, r := range refs {
 		keys[r.Label] = append(keys[r.Label], r.Key)
@@ -287,7 +284,7 @@ func overviewEdges(ctx context.Context, run queryFunc, refs []nodeRef, nodes map
 	seen := map[string]bool{}
 	for _, rt := range model.Rels {
 		q, ok := overviewEdgeQueries[rt.Name]
-		if !ok || len(keys[rt.From]) == 0 || len(keys[rt.To]) == 0 {
+		if !ok || rt.Phase > maxPhase || len(keys[rt.From]) == 0 || len(keys[rt.To]) == 0 {
 			continue
 		}
 		rows, err := run(ctx, q, map[string]any{"fromKeys": keys[rt.From], "toKeys": keys[rt.To], "limit": int64(maxEdges + 1)})

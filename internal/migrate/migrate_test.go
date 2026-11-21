@@ -3,6 +3,7 @@ package migrate
 import (
 	"context"
 	"errors"
+	"github.com/bellu/bskg/internal/model"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -135,5 +136,47 @@ func TestRunnerLocked(t *testing.T) {
 	_, err := (&Runner{Store: st, Files: files3(), Owner: "o"}).Run(context.Background())
 	if !errors.Is(err, ErrLocked) || len(st.exec) != 0 {
 		t.Fatalf("err %v", err)
+	}
+}
+
+// Version numbers may skip: V1xx and V2xx follow V003 and run in ascending order.
+func TestEmbeddedPhaseMigrationsAndGaps(t *testing.T) {
+	ms, err := Embedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var versions []int
+	by := map[int]Migration{}
+	for _, m := range ms {
+		versions = append(versions, m.Version)
+		by[m.Version] = m
+	}
+	if len(ms) < 5 || versions[len(versions)-2] != 101 || versions[len(versions)-1] != 201 {
+		t.Fatalf("versions %v", versions)
+	}
+	if !strings.Contains(strings.Join(by[101].Statements, "\n"), "UniquePackagePurl") {
+		t.Errorf("V101: %v", by[101].Statements)
+	}
+	v201 := strings.Join(by[201].Statements, "\n")
+	for _, n := range []string{"UniqueAttackPatternID", "UniqueTechniqueID", "UniqueAtlasTechniqueID"} {
+		if !strings.Contains(v201, n) {
+			t.Errorf("V201 lacks %s", n)
+		}
+	}
+	for _, m := range []int{101, 201} {
+		for _, st := range by[m].Statements {
+			if !strings.Contains(st, "IF NOT EXISTS") {
+				t.Errorf("V%d statement is not idempotent: %s", m, st)
+			}
+		}
+	}
+	// A graph at V003 gets V101 and V201 although 4 to 100 do not exist.
+	applied := []Applied{{1, by[1].Checksum}, {2, by[2].Checksum}, {3, by[3].Checksum}}
+	pending, err := Plan(ms, applied)
+	if err != nil || len(pending) != 2 || pending[0].Version != 101 || pending[1].Version != 201 {
+		t.Fatalf("pending %v %v", pending, err)
+	}
+	if model.PhaseOfMigration(pending[1].Version) != 3 {
+		t.Error("V201 must be phase 3")
 	}
 }

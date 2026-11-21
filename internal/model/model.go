@@ -75,6 +75,9 @@ var Rels = []RelType{
 	{"FIXES", "FixCommit", "Vulnerability", nil, 1},
 	{"RELATED_ATTACK_PATTERN", "Weakness", "AttackPattern", nil, 3},
 	{"MAPS_TO_TECHNIQUE", "AttackPattern", "Technique", nil, 3},
+	// ADAPTED_FROM is a deviation from the design: an ATLAS technique that
+	// cites an ATT&CK technique points at it (docs/graph-model.md).
+	{"ADAPTED_FROM", "AtlasTechnique", "Technique", nil, 3},
 }
 
 // ExploitProps are the only properties stored on an Exploit node besides the
@@ -124,4 +127,27 @@ func ResetLabels() []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// PhaseOfMigration returns the schema phase a migration version belongs to:
+// V1xx (100 to 199) is phase 2, V2xx (200 and above) is phase 3, and every
+// lower version is phase 1. Versions may skip numbers.
+func PhaseOfMigration(version int) int {
+	switch {
+	case version >= 200:
+		return 3
+	case version >= 100:
+		return 2
+	}
+	return 1
+}
+
+// PhaseOfMigrations returns the phase of the highest version in versions
+// (1 when the list is empty).
+func PhaseOfMigrations(versions []int) int {
+	top := 0
+	for _, v := range versions {
+		top = max(top, v)
+	}
+	return PhaseOfMigration(top)
 }
