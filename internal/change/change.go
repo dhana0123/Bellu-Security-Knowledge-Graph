@@ -1,21 +1,14 @@
-// Package change builds and writes Change records. The baseline writes one
-// summary record per load.
+// Package change builds and writes Change records.
 package change
 
 import (
 	"context"
 	crand "crypto/rand"
-	"encoding/json"
 	"sync"
 	"time"
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 	"github.com/oklog/ulid/v2"
-)
-
-// Change types stored in Change.type.
-const (
-	TypeBaselineLoad = "baselineLoad"
 )
 
 // Record is one (:Change) node.
@@ -45,36 +38,6 @@ func NewID(t time.Time) (string, error) {
 		return "", err
 	}
 	return id.String(), nil
-}
-
-// BaselineSummary is the payload of the single baselineLoad record.
-type BaselineSummary struct {
-	Commit        string           `json:"commit"`
-	Nodes         int64            `json:"nodes"`
-	Relationships int64            `json:"relationships"`
-	NodesByLabel  map[string]int64 `json:"nodesByLabel,omitempty"`
-	RelsByType    map[string]int64 `json:"relationshipsByType,omitempty"`
-}
-
-// NewBaselineLoad builds the one summary record for a baseline load.
-func NewBaselineLoad(runID, source string, s BaselineSummary, at time.Time) (Record, error) {
-	id, err := NewID(at)
-	if err != nil {
-		return Record{}, err
-	}
-	b, err := json.Marshal(s)
-	if err != nil {
-		return Record{}, err
-	}
-	return Record{
-		ID:        id,
-		EntityKey: "BaselineLoad:" + runID,
-		Type:      TypeBaselineLoad,
-		NewValue:  string(b),
-		Source:    source,
-		RunID:     runID,
-		At:        at.UTC().Truncate(time.Millisecond),
-	}, nil
 }
 
 const cypherWrite = `MERGE (c:Change {id: $id})

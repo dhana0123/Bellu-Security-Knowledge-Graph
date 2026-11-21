@@ -21,7 +21,7 @@ import (
 )
 
 // Image is the pinned Neo4j test image.
-const Image = "neo4j:5.26.33-community"
+const Image = "neo4j:2026.10.2-community"
 
 const (
 	password    = "bskg-test-password"

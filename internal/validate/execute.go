@@ -10,10 +10,6 @@ import (
 	"github.com/bellu/bskg/internal/graph"
 )
 
-// ProfileIntegrity runs the schema, duplicate, endpoint and REJECT checks
-// only. It is the profile operators run after NVD data exists.
-const ProfileIntegrity Profile = "integrity"
-
 // DefaultOut is the report path used when Options.Out is empty.
 const DefaultOut = "validation-report.json"
 
@@ -21,52 +17,23 @@ const DefaultOut = "validation-report.json"
 type Options struct {
 	// Out is the report file; empty means DefaultOut.
 	Out string
-	// UpdateExpected rewrites the representative-query expected files under
-	// ExpectedDir from the live graph before the queries are evaluated.
-	// It is not allowed for the integrity profile.
-	UpdateExpected bool
-	// ExpectedDir is the internal/validate source directory (default
-	// "internal/validate").
-	ExpectedDir string
+	// QueryParams holds the parameters of the representative queries by name.
+	// Queries without an entry are not run.
+	QueryParams map[string]map[string]any
 }
 
-// Execute runs a validation profile against the graph, writes the report
-// JSON and returns it. The client needs Timeout >= QueryTimeout for the
-// baseline and fixture profiles. A non-nil error means validation could not
-// be completed (connection, query infrastructure or write failure); a failed
-// validation is reported through Report.Passed() with a nil error.
-// If the report was built but could not be written, both are returned.
-func Execute(ctx context.Context, c *graph.Client, profile Profile, opts Options) (Report, error) {
-	var exp *Expected
-	if profile != ProfileIntegrity {
-		e, err := LoadExpected(profile) // errors for unknown profiles
-		if err != nil {
-			return Report{}, err
-		}
-		exp = &e
-	}
-	if opts.UpdateExpected && profile == ProfileIntegrity {
-		return Report{}, fmt.Errorf("--update-expected does not apply to the %q profile", profile)
-	}
-	disc, err := LoadDiscrepancies()
+// Execute runs the validation against the graph, writes the report JSON and
+// returns it. A non-nil error means validation could not be completed
+// (connection, query infrastructure or write failure); a failed validation is
+// reported through Report.Passed() with a nil error. If the report was built
+// but could not be written, both are returned.
+func Execute(ctx context.Context, c *graph.Client, opts Options) (Report, error) {
+	rep, err := Run(ctx, c)
 	if err != nil {
 		return Report{}, err
 	}
-	if opts.UpdateExpected {
-		dir := opts.ExpectedDir
-		if dir == "" {
-			dir = "internal/validate"
-		}
-		if err := UpdateExpected(ctx, c, profile, dir); err != nil {
-			return Report{}, fmt.Errorf("update expected: %w", err)
-		}
-	}
-	rep, err := Run(ctx, c, string(profile), exp, disc)
-	if err != nil {
-		return Report{}, err
-	}
-	if profile != ProfileIntegrity {
-		qs, err := RunQueries(ctx, c, profile)
+	if len(opts.QueryParams) > 0 {
+		qs, err := RunQueries(ctx, c, opts.QueryParams)
 		if err != nil {
 			return Report{}, err
 		}

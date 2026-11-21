@@ -35,37 +35,11 @@ data "aws_ami" "ubuntu" {
   owners      = ["099720109477"] # Canonical
   filter {
     name   = "name"
-    values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"]
+    values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-arm64-server-*"]
   }
-}
-
-# ---------- S3 baseline bucket ----------
-
-resource "aws_s3_bucket" "baseline" {
-  bucket = var.baseline_bucket_name
-}
-
-resource "aws_s3_bucket_public_access_block" "baseline" {
-  bucket                  = aws_s3_bucket.baseline.id
-  block_public_acls       = true
-  block_public_policy     = true
-  ignore_public_acls      = true
-  restrict_public_buckets = true
-}
-
-resource "aws_s3_bucket_versioning" "baseline" {
-  bucket = aws_s3_bucket.baseline.id
-  versioning_configuration {
-    status = "Enabled"
-  }
-}
-
-resource "aws_s3_bucket_server_side_encryption_configuration" "baseline" {
-  bucket = aws_s3_bucket.baseline.id
-  rule {
-    apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
-    }
+  filter {
+    name   = "architecture"
+    values = ["arm64"]
   }
 }
 
@@ -81,33 +55,10 @@ data "aws_iam_policy_document" "assume_ec2" {
   }
 }
 
+# The host role carries only the AWS-managed SSM core policy: no S3, no static keys.
 resource "aws_iam_role" "host" {
   name               = "${var.name_prefix}-host"
   assume_role_policy = data.aws_iam_policy_document.assume_ec2.json
-}
-
-data "aws_iam_policy_document" "baseline_read" {
-  statement {
-    sid       = "GetBaselineObjects"
-    actions   = ["s3:GetObject"]
-    resources = ["${aws_s3_bucket.baseline.arn}/vulkg/*"]
-  }
-  statement {
-    sid       = "ListBaselinePrefix"
-    actions   = ["s3:ListBucket"]
-    resources = [aws_s3_bucket.baseline.arn]
-    condition {
-      test     = "StringLike"
-      variable = "s3:prefix"
-      values   = ["vulkg/*"]
-    }
-  }
-}
-
-resource "aws_iam_role_policy" "baseline_read" {
-  name   = "${var.name_prefix}-baseline-read"
-  role   = aws_iam_role.host.id
-  policy = data.aws_iam_policy_document.baseline_read.json
 }
 
 resource "aws_iam_instance_profile" "host" {
@@ -139,7 +90,7 @@ resource "aws_security_group" "host" {
   }
 
   egress {
-    description = "HTTPS (NVD, S3, Docker Hub, packages)"
+    description = "HTTPS (NVD, MITRE, Exploit-DB, Docker Hub, packages)"
     from_port   = 443
     to_port     = 443
     protocol    = "tcp"
@@ -198,6 +149,13 @@ resource "aws_instance" "host" {
   metadata_options {
     http_endpoint = "enabled"
     http_tokens   = "required" # IMDSv2 only
+
+    # Hop limit 1 keeps containers on the Docker bridge away from the metadata service.
+    http_put_response_hop_limit = 1
+  }
+
+  credit_specification {
+    cpu_credits = var.cpu_credits
   }
 
   root_block_device {
@@ -268,7 +226,7 @@ resource "aws_iam_role_policy" "dlm" {
 }
 
 resource "aws_dlm_lifecycle_policy" "daily" {
-  description        = "BSKG daily snapshots of volumes tagged bskg-backup=true"
+  description        = "BSKG daily snapshots of volumes tagged bskg-backup"
   execution_role_arn = aws_iam_role.dlm.arn
   state              = "ENABLED"
 
@@ -291,4 +249,10 @@ resource "aws_dlm_lifecycle_policy" "daily" {
       copy_tags = true
     }
   }
+}
+
+# Session Manager access, so the operator needs no SSH key and no extra port.
+resource "aws_iam_role_policy_attachment" "ssm" {
+  role       = aws_iam_role.host.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }

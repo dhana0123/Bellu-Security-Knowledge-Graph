@@ -181,75 +181,27 @@ func NewRejectCheck(count int64, ex []string) RejectCheck {
 	return RejectCheck{Passed: count == 0, Count: count, Examples: ex}
 }
 
-// LoaderCounts is what the baseline loader recorded on (:Job {name:"baseline-load"}).
-//
-// Storage contract (the loader must write these properties on that node):
-//
-//	missing_<step>  integer  rows of that step whose relationship endpoint
-//	                         was missing (steps: exploits_rel, example_of,
-//	                         domain_refers, product_affects, vendor_belongs,
-//	                         writes, affected_version); absent = not recorded
-//	rejectDeleted   integer  Vulnerability nodes deleted by step reject_delete
-//	bareNodes       integer  bare Vulnerability nodes created by step 8
-type LoaderCounts struct {
-	MissingEndpoints map[string]int64 `json:"missingEndpoints"`
-	RejectDeleted    *int64           `json:"rejectDeleted"`
-	BareNodes        *int64           `json:"bareNodes"`
-}
-
-// MissingPrefix is the Job property prefix for per-step missing endpoints.
-const MissingPrefix = "missing_"
-
-// LoaderCountsFromProps extracts LoaderCounts from Job node properties.
-func LoaderCountsFromProps(props map[string]any) LoaderCounts {
-	lc := LoaderCounts{MissingEndpoints: map[string]int64{}}
-	for k, v := range props {
-		n, ok := v.(int64)
-		if !ok {
-			continue
-		}
-		switch {
-		case strings.HasPrefix(k, MissingPrefix):
-			lc.MissingEndpoints[strings.TrimPrefix(k, MissingPrefix)] = n
-		case k == "rejectDeleted":
-			x := n
-			lc.RejectDeleted = &x
-		case k == "bareNodes":
-			x := n
-			lc.BareNodes = &x
-		}
-	}
-	return lc
-}
-
-// Inputs are everything gathered from the graph. Nil/empty sections are
-// omitted from the report (the "integrity" profile has no Counts).
+// Inputs are everything gathered from the graph.
 type Inputs struct {
-	Profile     string
-	Expected    *Expected
-	Discrepancy []Discrepancy
-	Counts      map[string]int64 // nil: skip count comparison
 	Constraints []CatalogConstraint
 	Indexes     []CatalogIndex
 	Duplicates  []DuplicateCheck
 	Endpoints   []EndpointCheck
 	Reject      RejectCheck
-	Loader      LoaderCounts
 }
 
 // Report is the Validation_Report JSON document.
 type Report struct {
-	Profile     string           `json:"profile"`
-	GeneratedAt string           `json:"generatedAt,omitempty"`
-	Status      string           `json:"status"` // "passed" or "failed"
-	Failed      []string         `json:"failed"` // names of failed checks
-	Counts      []Result         `json:"counts,omitempty"`
-	Schema      []SchemaCheck    `json:"schema"`
-	Duplicates  []DuplicateCheck `json:"duplicates"`
-	Endpoints   []EndpointCheck  `json:"endpoints"`
-	Reject      RejectCheck      `json:"reject"`
-	Loader      LoaderCounts     `json:"loader"`
-	// Queries is filled by the representative-query runner (task 6.3).
+	GeneratedAt string   `json:"generatedAt,omitempty"`
+	Status      string   `json:"status"` // "passed" or "failed"
+	Failed      []string `json:"failed"` // names of failed checks
+	// Counts holds the node and relationship counts collected for the smoke check.
+	Counts     map[string]int64 `json:"counts,omitempty"`
+	Schema     []SchemaCheck    `json:"schema"`
+	Duplicates []DuplicateCheck `json:"duplicates"`
+	Endpoints  []EndpointCheck  `json:"endpoints"`
+	Reject     RejectCheck      `json:"reject"`
+	// Queries is filled by the representative-query runner.
 	Queries any `json:"queries,omitempty"`
 }
 
@@ -257,24 +209,11 @@ type Report struct {
 // are evaluated even when an earlier one fails.
 func BuildReport(in Inputs) Report {
 	r := Report{
-		Profile:    in.Profile,
 		Schema:     append(CheckConstraints(in.Constraints), CheckIndexes(in.Indexes)...),
 		Duplicates: nonNilDup(in.Duplicates),
 		Endpoints:  nonNilEnd(in.Endpoints),
 		Reject:     in.Reject,
-		Loader:     in.Loader,
 		Failed:     []string{},
-	}
-	if r.Loader.MissingEndpoints == nil {
-		r.Loader.MissingEndpoints = map[string]int64{}
-	}
-	if in.Counts != nil && in.Expected != nil {
-		r.Counts = CompareCounts(*in.Expected, in.Discrepancy, in.Counts)
-		for _, c := range r.Counts {
-			if !c.Passed {
-				r.Failed = append(r.Failed, "count:"+c.Metric)
-			}
-		}
 	}
 	for _, s := range r.Schema {
 		if !s.Passed {

@@ -41,8 +41,8 @@ func TestVulnerabilityDetail(t *testing.T) {
 		return []Row{{
 			"props": map[string]any{
 				"cveID": "CVE-2021-44228", "publishedDate": neo4j.Date{},
-				"sources": []any{"vulkg", "nvd", "vulkg"},
-				"p_vulkg_run": "R1", "p_vulkg_at": "2024-01-01", "p_vulkg_ref": "abc",
+				"sources":   []any{"osv", "nvd", "osv"},
+				"p_osv_run": "R1", "p_osv_at": "2024-01-01", "p_osv_ref": "abc",
 				"p_nvd_run": "R2", "p_nvd_removed": true,
 			},
 			"weaknesses": []any{"CWE-917"},
@@ -65,12 +65,12 @@ func TestVulnerabilityDetail(t *testing.T) {
 		t.Fatal("kev should be absent")
 	}
 	src := body["sources"].([]any)
-	if len(src) != 2 || src[0] != "nvd" || src[1] != "vulkg" {
+	if len(src) != 2 || src[0] != "nvd" || src[1] != "osv" {
 		t.Fatalf("sources = %v", src)
 	}
 	prov := body["provenance"].([]any)
 	vk := prov[1].(map[string]any)
-	if vk["source"] != "vulkg" || vk["runId"] != "R1" || vk["recordId"] != "abc" || vk["fetchedAt"] != "2024-01-01" {
+	if vk["source"] != "osv" || vk["runId"] != "R1" || vk["recordId"] != "abc" || vk["fetchedAt"] != "2024-01-01" {
 		t.Fatalf("provenance = %v", prov)
 	}
 	for _, k := range []string{"weaknesses", "exploits", "products", "domains", "graph"} {
@@ -131,7 +131,7 @@ func TestVendorWeaknessAndExploitShapes(t *testing.T) {
 		case cypherVendorByKey:
 			return []Row{{"props": map[string]any{"vendorName": "apache"}, "products": []any{"log4j"}}}, nil
 		case cypherWeaknessByID:
-			return []Row{{"props": map[string]any{"cweID": "CWE-79", "sources": []any{"vulkg"}}}}, nil
+			return []Row{{"props": map[string]any{"cweID": "CWE-79", "sources": []any{"osv"}}}}, nil
 		case cypherExploitByID:
 			return []Row{{
 				"props":           map[string]any{"eid": "1", "platform": "linux", "code": "SECRET", "exploitPublishDate": neo4j.Date{}},
@@ -144,7 +144,7 @@ func TestVendorWeaknessAndExploitShapes(t *testing.T) {
 	if code, b := getJSON(t, e, "/v1/vendors/apache"); code != 200 || b["products"].([]any)[0] != "log4j" {
 		t.Fatalf("vendor %d %v", code, b)
 	}
-	if code, b := getJSON(t, e, "/v1/weaknesses/cwe-79"); code != 200 || b["sources"].([]any)[0] != "vulkg" {
+	if code, b := getJSON(t, e, "/v1/weaknesses/cwe-79"); code != 200 || b["sources"].([]any)[0] != "osv" {
 		t.Fatalf("weakness %d %v", code, b)
 	}
 	code, b := getJSON(t, e, "/v1/exploits/1")

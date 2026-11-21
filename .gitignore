@@ -2,7 +2,7 @@
 .env
 .env.*
 !.env.example
-!.env.8gb
+!.env.16gb
 
 # build output
 /bskg
@@ -23,3 +23,8 @@ infra/.terraform/
 *.tfstate
 *.tfstate.*
 *.tfvars
+
+# Client_UI build output: keep only the placeholder that lets go:embed compile
+/ui/dist/*
+!/ui/dist/index.html
+!/ui/dist/.gitkeep

@@ -19,6 +19,7 @@ const DefaultBuildState = "migrating"
 // Meta is the raw graph metadata behind the response envelope.
 type Meta struct {
 	BuildState  string
+	BuildMode   string                // "sample", "full", or "" when unset
 	LastSuccess map[string]*time.Time // per source; nil value = never succeeded
 }
 
@@ -41,6 +42,7 @@ func Stale(lastSuccess *time.Time, now time.Time, threshold time.Duration) bool 
 type GraphMeta struct {
 	Version    string                `json:"version"`
 	BuildState string                `json:"buildState"`
+	BuildMode  *string               `json:"buildMode"`
 	Stale      bool                  `json:"stale"`
 	Sources    map[string]SourceMeta `json:"sources"`
 }
@@ -98,10 +100,16 @@ func (p *metaProvider) build(m Meta, now time.Time) GraphMeta {
 	for _, name := range p.sources {
 		src[name] = SourceMeta{LastSuccess: m.LastSuccess[name]}
 	}
+	var mode *string
+	if m.BuildMode != "" {
+		mode = &m.BuildMode
+	}
+	// Data of a sample build is never reported stale (Requirement 30.5).
 	return GraphMeta{
 		Version:    p.version,
 		BuildState: state,
-		Stale:      Stale(m.LastSuccess["nvd"], now, p.stale),
+		BuildMode:  mode,
+		Stale:      m.BuildMode != "sample" && Stale(m.LastSuccess["nvd"], now, p.stale),
 		Sources:    src,
 	}
 }
@@ -125,9 +133,7 @@ func (g GraphMetaReader) Read(ctx context.Context) (Meta, error) {
 			if s, ok := rec["state"].(string); ok && s != "" {
 				m.BuildState = s
 			}
-			if t, ok := asTime(rec["baseline"]); ok {
-				m.LastSuccess["vulkg"] = &t
-			}
+			m.BuildMode, _ = rec["mode"].(string)
 		}
 		if err := r.Err(); err != nil {
 			return nil, err

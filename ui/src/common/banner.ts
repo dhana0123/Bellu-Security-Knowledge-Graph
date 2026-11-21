@@ -4,7 +4,7 @@ import type { GraphEnvelope } from '../api/types';
 export function bannerMessage(g: GraphEnvelope | null): string | null {
   if (!g) return null;
   if (g.buildState === 'ready' && g.buildMode !== 'sample') return null;
-  return `Graph build state: ${g.buildState}. Build mode: ${g.buildMode}.${
+  return `Graph build state: ${g.buildState}. Build mode: ${g.buildMode ?? 'not set'}.${
     g.buildMode === 'sample' ? ' This is a sample build; data is incomplete.' : ''
   }`;
 }

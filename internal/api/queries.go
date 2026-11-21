@@ -15,7 +15,7 @@ import (
 
 const (
 	// Graph metadata (envelope).
-	cypherBuildMeta = `MATCH (b:BuildMeta {id: 'build'}) RETURN b.buildState AS state, b.baselineLoadedAt AS baseline`
+	cypherBuildMeta = `MATCH (b:BuildMeta {id: 'build'}) RETURN b.buildState AS state, b.buildMode AS mode`
 	cypherLastRuns  = `MATCH (r:SyncRun) WHERE r.status IN ['succeeded', 'succeeded_with_errors'] RETURN r.source AS source, max(r.endedAt) AS at`
 
 	// Vulnerability detail. $id is the canonical CVE id. Returns one row with
@@ -150,23 +150,44 @@ ORDER BY c.id DESC`
 OPTIONAL MATCH (c:Change {entityKey: $entityKey})
 WITH min(c.at) AS earliest
 OPTIONAL MATCH (b:BuildMeta {id: 'build'})
-RETURN earliest, b.baselineLoadedAt AS baselineLoadedAt, b.changesPurgedBefore AS purgedBefore`
+RETURN earliest, b.changesPurgedBefore AS purgedBefore`
 
-	// Status.
-	cypherStatusRuns = `
-MATCH (r:SyncRun)
-WITH r ORDER BY r.startedAt DESC
-WITH r.source AS source, collect(r)[0] AS last
-RETURN source, last.id AS runId, last.status AS status, last.startedAt AS startedAt,
-  last.endedAt AS endedAt, last.error AS error`
-	cypherStatusCheckpoints = `MATCH (c:Checkpoint) RETURN c.source AS source, c.watermark AS watermark, c.resume AS resume, c.updatedAt AS updatedAt`
-	cypherStatusDeadLetters = `MATCH (d:DeadLetter) RETURN d.source AS source, count(d) AS deadLetters`
-	cypherStatusJobs        = `
-MATCH (j:Job)
-RETURN j.name AS name, j.state AS state, j.attempts AS attempts, j.currentStep AS currentStep,
-  j.rowsDone AS rowsDone, j.rowsTotal AS rowsTotal, j.startedAt AS startedAt,
-  j.endedAt AS endedAt, j.error AS error
-ORDER BY j.startedAt ASC`
+	// Status. Per-source checkpoint and run data come from checkpoint.ReadStatus.
+	cypherStatusBuild = `
+OPTIONAL MATCH (b:BuildMeta {id: 'build'})
+RETURN b IS NOT NULL AS found, b.buildState AS buildState, b.buildMode AS buildMode,
+  b.sampleLimit AS sampleLimit, b.queueComplete AS queueComplete,
+  b.lastValidationStatus AS validationStatus, b.lastValidationMode AS validationMode,
+  b.lastValidationEndedAt AS validationEndedAt`
+	cypherStatusJobs = `
+MATCH (j:Job) WHERE j.queueState IS NOT NULL
+RETURN j.name AS name, j.queueState AS state, j.queueAttempts AS attempts, j.queueError AS error,
+  j.queueMode AS mode, j.queueLimit AS limit, j.queueStartedAt AS startedAt, j.queueEndedAt AS endedAt`
+
+	// Highest applied schema migration (the migrating gate).
+	cypherMigrationVersion = `OPTIONAL MATCH (m:Migration) RETURN max(m.version) AS version`
+
+	// Statistics (Requirement 20.8). The per-label and per-type count
+	// queries are generated from the schema registry in stats.go.
+	cypherStatsScan = `
+MATCH (v:Vulnerability) WHERE coalesce(v.rejected, false) = false
+RETURN v.publishedDate.year AS year,
+  CASE WHEN v.v3baseScore IS NULL THEN 'UNSCORED'
+       WHEN v.v3baseScore = 0 THEN 'NONE'
+       WHEN v.v3baseScore < 4.0 THEN 'LOW'
+       WHEN v.v3baseScore < 7.0 THEN 'MEDIUM'
+       WHEN v.v3baseScore < 9.0 THEN 'HIGH'
+       ELSE 'CRITICAL' END AS severity,
+  v.exploitability AS exploitability, count(*) AS n`
+	cypherStatsTopWeaknesses = `
+MATCH (v:Vulnerability)-[:EXAMPLE_OF]->(w:Weakness) WHERE coalesce(v.rejected, false) = false
+RETURN w.cweID AS key, count(v) AS n ORDER BY n DESC, key ASC LIMIT 10`
+	cypherStatsTopVendors = `
+MATCH (v:Vulnerability)-[:AFFECTS]->(:Product)-[:BELONGS_TO]->(vd:Vendor) WHERE coalesce(v.rejected, false) = false
+RETURN vd.vendorName AS key, count(DISTINCT v) AS n ORDER BY n DESC, key ASC LIMIT 10`
+	cypherStatsTopProducts = `
+MATCH (v:Vulnerability)-[:AFFECTS]->(p:Product) WHERE coalesce(v.rejected, false) = false
+RETURN p.productName AS key, count(v) AS n ORDER BY n DESC, key ASC LIMIT 10`
 
 	// Sources list (no graph access beyond the envelope; kept for completeness
 	// of last-success reads).
@@ -184,8 +205,9 @@ var allQueries = []string{
 	cypherSearch, cypherSearchText,
 	cypherCoExploited, cypherCoAffected,
 	cypherHistory, cypherAsOfChanges, cypherHistoryFloor,
-	cypherStatusRuns, cypherStatusCheckpoints, cypherStatusDeadLetters, cypherStatusJobs,
 	cypherSourceLastSuccess,
+	cypherStatusBuild, cypherStatusJobs, cypherMigrationVersion,
+	cypherStatsScan, cypherStatsTopWeaknesses, cypherStatsTopVendors, cypherStatsTopProducts,
 }
 
 // Row is one result record as a column map.

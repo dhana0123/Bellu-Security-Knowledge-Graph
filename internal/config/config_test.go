@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	"pgregory.net/rapid"
 )
@@ -47,13 +48,13 @@ func TestDefaultsCore(t *testing.T) {
 }
 
 func TestWorkerDefaults(t *testing.T) {
-	c, err := LoadFrom(env(map[string]string{EnvNeo4jPassword: "pw", EnvBaselineDir: "/x"}, nil), ScopeWorker)
+	c, err := LoadFrom(env(map[string]string{EnvNeo4jPassword: "pw"}, nil), ScopeWorker)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.BatchSize != 500 || c.BaselineBatchSize != 5000 || c.StaleAfterHours != 48 ||
+	if c.BatchSize != 500 || c.SampleLimit != 0 || c.StaleAfterHours != 48 ||
 		c.ChangeRetentionDays != 365 || c.NVDSyncTime != "03:00" || c.EPSSChangeThreshold != 0.01 ||
-		len(c.EnabledSources) != 1 || c.EnabledSources[0] != "nvd" {
+		strings.Join(c.EnabledSources, ",") != "cwe,nvd,exploitdb" {
 		t.Fatalf("bad defaults: %+v", c)
 	}
 }
@@ -75,31 +76,38 @@ func TestScopesAreIndependent(t *testing.T) {
 	}
 }
 
-func TestBaselineFetchBucketRules(t *testing.T) {
-	m := map[string]string{}
-	got := settings(t, func() error { _, e := LoadFrom(env(m, nil), ScopeBaselineFetch); return e }())
-	if strings.Join(got, ",") != "AWS_REGION,BSKG_BASELINE_BUCKET,BSKG_BASELINE_PREFIX" {
-		t.Fatalf("got %v", got)
-	}
-	m[EnvBaselineDir] = "/data"
-	if _, err := LoadFrom(env(m, nil), ScopeBaselineFetch); err != nil {
-		t.Fatal(err)
+func TestSampleLimit(t *testing.T) {
+	for _, tc := range []struct {
+		v    string
+		want int
+		ok   bool
+	}{{"", 0, true}, {" 1000 ", 1000, true}, {"1", 1, true}, {"1000000", 1000000, true},
+		{"0", 0, false}, {"1000001", 0, false}, {"-5", 0, false}, {"+5", 0, false}, {"1.5", 0, false}, {"abc", 0, false}} {
+		m := map[string]string{EnvNeo4jPassword: "p", EnvSampleLimit: tc.v}
+		c, err := LoadFrom(env(m, nil), ScopeWorker)
+		if (err == nil) != tc.ok {
+			t.Errorf("limit %q: err=%v", tc.v, err)
+			continue
+		}
+		if tc.ok && c.SampleLimit != tc.want {
+			t.Errorf("limit %q: got %d", tc.v, c.SampleLimit)
+		}
+		if !tc.ok && !strings.Contains(err.Error(), EnvSampleLimit) {
+			t.Errorf("limit %q: error does not name the setting: %v", tc.v, err)
+		}
 	}
 }
-
 func TestCollectsAllErrorsWithoutValues(t *testing.T) {
 	m := map[string]string{
 		EnvBatchSize:           "abc-secretish",
-		EnvBaselineBatchSize:   "10001",
 		EnvChangeRetentionDays: "0",
 		EnvStaleAfterHours:     "721",
 		EnvNVDSyncTime:         "25:99",
 		EnvLogLevel:            "loud",
-		EnvBaselineDir:         "/x",
 	}
 	_, err := LoadFrom(env(m, nil), ScopeWorker)
 	got := settings(t, err)
-	want := "BSKG_BASELINE_BATCH_SIZE,BSKG_BATCH_SIZE,BSKG_CHANGE_RETENTION_DAYS,BSKG_LOG_LEVEL,BSKG_NVD_SYNC_TIME,BSKG_STALE_AFTER_HOURS,NEO4J_PASSWORD"
+	want := "BSKG_BATCH_SIZE,BSKG_CHANGE_RETENTION_DAYS,BSKG_LOG_LEVEL,BSKG_NVD_SYNC_TIME,BSKG_STALE_AFTER_HOURS,NEO4J_PASSWORD"
 	if strings.Join(got, ",") != want {
 		t.Fatalf("got %v", got)
 	}
@@ -115,7 +123,7 @@ func TestBatchSizeBoundaries(t *testing.T) {
 		v  string
 		ok bool
 	}{{"1", true}, {"10000", true}, {"0", false}, {"10001", false}, {"1.5", false}, {"-3", false}} {
-		m := map[string]string{EnvNeo4jPassword: "p", EnvBaselineDir: "/x", EnvBatchSize: tc.v}
+		m := map[string]string{EnvNeo4jPassword: "p", EnvBatchSize: tc.v}
 		_, err := LoadFrom(env(m, nil), ScopeWorker)
 		if (err == nil) != tc.ok {
 			t.Errorf("batch %q: err=%v", tc.v, err)
@@ -164,7 +172,7 @@ func TestTLSPairAndSources(t *testing.T) {
 	if got := settings(t, err); got[0] != EnvAPITLSCertFile {
 		t.Fatalf("got %v", got)
 	}
-	m = map[string]string{EnvNeo4jPassword: "p", EnvBaselineDir: "/x", EnvEnabledSources: "nvd, Bad!"}
+	m = map[string]string{EnvNeo4jPassword: "p", EnvEnabledSources: "nvd, Bad!"}
 	_, err = LoadFrom(env(m, nil), ScopeWorker)
 	if got := settings(t, err); got[0] != EnvEnabledSources {
 		t.Fatalf("got %v", got)
@@ -176,7 +184,7 @@ func TestTLSPairAndSources(t *testing.T) {
 func TestPropertyBatchSizeValidation(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		n := rapid.IntRange(-5, 20000).Draw(t, "n")
-		m := map[string]string{EnvNeo4jPassword: "p", EnvBaselineDir: "/x", EnvBatchSize: fmt.Sprint(n)}
+		m := map[string]string{EnvNeo4jPassword: "p", EnvBatchSize: fmt.Sprint(n)}
 		c, err := LoadFrom(env(m, nil), ScopeWorker)
 		valid := n >= 1 && n <= 10000
 		if valid != (err == nil) {
@@ -199,7 +207,7 @@ func TestPropertyBatchSizeValidation(t *testing.T) {
 func TestPropertySecretNotInErrors(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		sec := rapid.StringMatching(`[A-Za-z0-9]{12,24}`).Draw(t, "secret")
-		m := map[string]string{EnvNeo4jPassword: sec, EnvNVDAPIKey: sec, EnvBatchSize: "bad", EnvBaselineDir: "/x"}
+		m := map[string]string{EnvNeo4jPassword: sec, EnvNVDAPIKey: sec, EnvBatchSize: "bad"}
 		c, err := LoadFrom(env(m, nil), ScopeWorker)
 		if err == nil {
 			t.Fatal("want error")
@@ -215,17 +223,17 @@ func TestPropertySecretNotInErrors(t *testing.T) {
 // **Validates: Requirements 4.2, 7.12, 20.2, 20.4, 20.5**
 func TestPropertyMultiSettingValidation(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
-		m := map[string]string{EnvBaselineDir: "/x"}
+		m := map[string]string{}
 		var want []string
 		if rapid.Bool().Draw(t, "hasPw") {
 			m[EnvNeo4jPassword] = "p"
 		} else {
 			want = append(want, EnvNeo4jPassword)
 		}
-		bs := rapid.IntRange(-2, 20000).Draw(t, "baselineBatch")
-		m[EnvBaselineBatchSize] = fmt.Sprint(bs)
-		if bs < 1 || bs > 10000 {
-			want = append(want, EnvBaselineBatchSize)
+		sl := rapid.IntRange(-2, 1000010).Draw(t, "sampleLimit")
+		m[EnvSampleLimit] = fmt.Sprint(sl)
+		if sl < 1 || sl > 1000000 {
+			want = append(want, EnvSampleLimit)
 		}
 		rd := rapid.IntRange(-2, 4000).Draw(t, "retention")
 		m[EnvChangeRetentionDays] = fmt.Sprint(rd)
@@ -275,7 +283,6 @@ func TestPropertySecretNotInFormattedConfig(t *testing.T) {
 		} else {
 			m = map[string]string{EnvNeo4jPassword: sec, EnvNVDAPIKey: sec}
 		}
-		m[EnvBaselineDir] = "/x"
 		c, err := LoadFrom(env(m, files), ScopeWorker)
 		if err != nil {
 			t.Fatal(err)
@@ -291,4 +298,31 @@ func TestPropertySecretNotInFormattedConfig(t *testing.T) {
 			t.Fatalf("bad error: %v", err)
 		}
 	})
+}
+
+func TestStatsSettings(t *testing.T) {
+	base := map[string]string{EnvNeo4jPassword: "p", EnvCursorSecret: "c"}
+	c, err := LoadFrom(env(base, nil), ScopeCore|ScopeServe)
+	if err != nil || c.StatsTTL != 5*time.Minute || c.StatsTimeout != 30*time.Second {
+		t.Fatalf("defaults: %v %v", c, err)
+	}
+	cases := []struct {
+		name, ttl, timeout string
+		ok                 bool
+	}{
+		{"edges ok", "1m", "1s", true},
+		{"upper edges ok", "60m", "120s", true},
+		{"ttl low", "59s", "", false},
+		{"ttl high", "61m", "", false},
+		{"timeout low", "", "999ms", false},
+		{"timeout high", "", "121s", false},
+		{"not a duration", "five", "", false},
+	}
+	for _, tc := range cases {
+		m := map[string]string{EnvNeo4jPassword: "p", EnvCursorSecret: "c", EnvStatsTTL: tc.ttl, EnvStatsTimeout: tc.timeout}
+		_, err := LoadFrom(env(m, nil), ScopeCore|ScopeServe)
+		if (err == nil) != tc.ok {
+			t.Errorf("%s: err=%v", tc.name, err)
+		}
+	}
 }

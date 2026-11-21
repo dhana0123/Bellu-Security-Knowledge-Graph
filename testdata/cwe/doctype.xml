@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE Weakness_Catalog [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>
+<Weakness_Catalog Name="CWE" Version="9.9" Date="2026-10-28" xmlns="http://cwe.mitre.org/cwe-8">
+  <Weaknesses>
+    <Weakness ID="1" Name="&xxe;" Abstraction="Base" Status="Draft"><Description>x</Description></Weakness>
+  </Weaknesses>
+</Weakness_Catalog>

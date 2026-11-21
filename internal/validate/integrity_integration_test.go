@@ -33,7 +33,7 @@ func TestIntegrityOnSmallGraph(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	rep, err := validate.Run(ctx, c, "integrity", nil, nil)
+	rep, err := validate.Run(ctx, c)
 	if err != nil {
 		t.Fatal(err)
 	}

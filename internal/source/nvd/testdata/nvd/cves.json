@@ -1,0 +1,87 @@
+{
+  "resultsPerPage": 5,
+  "startIndex": 0,
+  "totalResults": 5,
+  "format": "NVD_CVE",
+  "version": "2.0",
+  "timestamp": "2024-06-01T00:00:00.000",
+  "vulnerabilities": [
+    {"cve": {
+      "id": "CVE-2021-0001",
+      "sourceIdentifier": "cve@mitre.org",
+      "published": "2021-03-04T05:06:07.123",
+      "lastModified": "2021-04-05T01:02:03.456",
+      "vulnStatus": "Analyzed",
+      "descriptions": [
+        {"lang": "es", "value": "descripcion"},
+        {"lang": "en", "value": "Cross-site scripting in Widget."}
+      ],
+      "metrics": {
+        "cvssMetricV31": [
+          {"source": "other@example.com", "type": "Secondary", "cvssData": {"version": "3.1", "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:N", "baseScore": 0.0, "baseSeverity": "NONE"}, "exploitabilityScore": 3.9, "impactScore": 0.0},
+          {"source": "nvd@nist.gov", "type": "Primary", "cvssData": {"version": "3.1", "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N", "attackVector": "NETWORK", "attackComplexity": "LOW", "privilegesRequired": "NONE", "userInteraction": "REQUIRED", "scope": "CHANGED", "confidentialityImpact": "LOW", "integrityImpact": "LOW", "availabilityImpact": "NONE", "baseScore": 6.1, "baseSeverity": "MEDIUM"}, "exploitabilityScore": 2.8, "impactScore": 2.7}
+        ],
+        "cvssMetricV30": [
+          {"source": "nvd@nist.gov", "type": "Primary", "cvssData": {"version": "3.0", "baseScore": 9.9, "baseSeverity": "CRITICAL"}}
+        ],
+        "cvssMetricV2": [
+          {"source": "nvd@nist.gov", "type": "Primary", "cvssData": {"version": "2.0", "vectorString": "AV:N/AC:M/Au:N/C:N/I:P/A:N", "accessVector": "NETWORK", "accessComplexity": "MEDIUM", "authentication": "NONE", "confidentialityImpact": "NONE", "integrityImpact": "PARTIAL", "availabilityImpact": "NONE", "baseScore": 4.3}, "baseSeverity": "MEDIUM", "exploitabilityScore": 8.6, "impactScore": 2.9, "acInsufInfo": false, "obtainAllPrivilege": false, "obtainUserPrivilege": false, "obtainOtherPrivilege": false, "userInteractionRequired": true}
+        ]
+      },
+      "weaknesses": [
+        {"source": "nvd@nist.gov", "type": "Primary", "description": [{"lang": "en", "value": "CWE-79"}, {"lang": "en", "value": "NVD-CWE-Other"}]},
+        {"source": "cve@mitre.org", "type": "Secondary", "description": [{"lang": "en", "value": "CWE-79"}]}
+      ],
+      "configurations": [
+        {"nodes": [{"operator": "OR", "negate": false, "cpeMatch": [
+          {"vulnerable": true, "criteria": "cpe:2.3:a:acme:widget:1.0:*:*:*:*:*:*:*"},
+          {"vulnerable": true, "criteria": "cpe:2.3:a:acme:widget:1.0:*:*:*:*:*:*:*"},
+          {"vulnerable": true, "criteria": "cpe:2.3:a:acme:widget:*:*:*:*:*:*:*:*", "versionStartIncluding": "2.0", "versionEndExcluding": "2.5"},
+          {"vulnerable": true, "criteria": "cpe:2.3:a:acme:widget:*:*:*:*:*:*:*:*"},
+          {"vulnerable": false, "criteria": "cpe:2.3:o:acme:widgetos:3.0:*:*:*:*:*:*:*"},
+          {"vulnerable": true, "criteria": "cpe:2.3:o:other:gadget:-:*:*:*:*:*:*:*"}
+        ]}]}
+      ],
+      "references": [
+        {"url": "https://Example.com:8443/advisory/1", "source": "cve@mitre.org"},
+        {"url": "https://example.com/other", "source": "cve@mitre.org"},
+        {"url": "http://vendor.example.org/x", "source": "cve@mitre.org"}
+      ]
+    }},
+    {"cve": {
+      "id": "CVE-2021-0002",
+      "published": "2021-05-01T00:00:00.000",
+      "lastModified": "2021-05-02T00:00:00.000",
+      "vulnStatus": "Rejected",
+      "descriptions": [{"lang": "en", "value": "** REJECT ** duplicate."}],
+      "weaknesses": [],
+      "references": []
+    }},
+    {"cve": {
+      "id": "CVE-2021-0003",
+      "published": "2021-06-01T00:00:00.000",
+      "lastModified": "2021-06-02T00:00:00.000",
+      "vulnStatus": "Awaiting Analysis",
+      "descriptions": [{"lang": "en", "value": "Awaiting analysis."}],
+      "references": [{"url": "https://example.com/3"}]
+    }},
+    {"cve": {
+      "id": "CVE-2021-0004",
+      "published": "2021-07-01T00:00:00.000",
+      "lastModified": "2021-07-02T00:00:00.000",
+      "vulnStatus": "Analyzed",
+      "descriptions": [{"lang": "en", "value": "Fourth."}],
+      "metrics": {"cvssMetricV30": [{"type": "Primary", "cvssData": {"version": "3.0", "baseScore": 5.0, "baseSeverity": "MEDIUM"}}]},
+      "references": []
+    }},
+    {"cve": {
+      "id": "CVE-2021-0005",
+      "published": "2021-08-01T00:00:00.000",
+      "lastModified": "2021-08-02T00:00:00.000",
+      "vulnStatus": "Analyzed",
+      "descriptions": [{"lang": "en", "value": "Fifth."}],
+      "metrics": {"cvssMetricV2": [{"type": "Primary", "cvssData": {"version": "2.0", "baseScore": 5.0}}]},
+      "references": []
+    }}
+  ]
+}

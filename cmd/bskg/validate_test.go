@@ -33,13 +33,13 @@ func TestAttachQueriesFailsReport(t *testing.T) {
 
 func TestPrintSummary(t *testing.T) {
 	var b bytes.Buffer
-	printSummary(&b, validate.Report{Profile: "integrity", Status: "failed", Failed: []string{"reject"}}, "r.json")
+	printSummary(&b, validate.Report{Status: "failed", Failed: []string{"reject"}}, "r.json")
 	if !strings.Contains(b.String(), "failed: reject") || !strings.Contains(b.String(), "r.json") {
 		t.Fatal(b.String())
 	}
 }
 
-func TestValidateUnknownProfile(t *testing.T) {
+func TestValidateUnknownFlag(t *testing.T) {
 	var o, e bytes.Buffer
 	if run([]string{"validate", "--profile", "nope"}, &o, &e) != 2 {
 		t.Fatal("want exit 2")

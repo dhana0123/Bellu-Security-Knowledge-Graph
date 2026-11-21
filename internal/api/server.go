@@ -6,10 +6,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io/fs"
 	"log/slog"
 	"net/http"
+	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/bellu/bskg/internal/apikey"
@@ -35,8 +39,17 @@ type Config struct {
 	Logger       *slog.Logger
 	QueryTimeout time.Duration
 	StaleAfter   time.Duration
-	Sources      []string // sources listed in graph.sources; default vulkg, nvd
+	Sources      []string // sources listed in graph.sources; default cwe, nvd, exploitdb
 	Now          func() time.Time
+	// Pending reports whether schema migrations are pending. While it
+	// returns true every /v1 route answers 503 "migrating" and /healthz 503.
+	// Nil means never pending. An error is treated as "not pending" (the
+	// handlers then report the graph failure themselves).
+	Pending func(ctx context.Context) (bool, error)
+	// UI is the embedded Client_UI file system served at /ui/. Nil disables it.
+	UI fs.FS
+	// MaxPhase is the highest schema phase applied (1 when zero).
+	MaxPhase int
 }
 
 // Server is the HTTP server skeleton. Later tasks add routes with Handle.
@@ -44,6 +57,10 @@ type Server struct {
 	cfg  Config
 	mux  *http.ServeMux
 	meta *metaProvider
+
+	pendMu  sync.Mutex
+	pendVal bool
+	pendExp time.Time
 }
 
 // New builds a Server. Auth, Limiter, Meta, Ping, and Logger are required.
@@ -57,8 +74,11 @@ func New(cfg Config) *Server {
 	if cfg.StaleAfter <= 0 {
 		cfg.StaleAfter = 48 * time.Hour
 	}
+	if cfg.MaxPhase <= 0 {
+		cfg.MaxPhase = 1
+	}
 	if len(cfg.Sources) == 0 {
-		cfg.Sources = []string{"vulkg", "nvd"}
+		cfg.Sources = []string{"cwe", "nvd", "exploitdb"}
 	}
 	s := &Server{
 		cfg: cfg,
@@ -71,6 +91,9 @@ func New(cfg Config) *Server {
 	s.mux.HandleFunc("GET /healthz", s.healthz)
 	s.mux.Handle("/v1/", s.protect(http.HandlerFunc(s.notFound)))
 	s.mux.HandleFunc("/", s.notFound)
+	if cfg.UI != nil {
+		s.mountUI(cfg.UI)
+	}
 	return s
 }
 
@@ -110,7 +133,11 @@ func (s *Server) WriteJSON(w http.ResponseWriter, r *http.Request, status int, b
 	for k, v := range body {
 		out[k] = v
 	}
-	out["graph"] = s.meta.get(r.Context())
+	m := s.meta.get(r.Context())
+	if s.pending(r.Context()) {
+		m.BuildState = DefaultBuildState
+	}
+	out["graph"] = m
 	writeRaw(w, status, out)
 }
 
@@ -154,6 +181,10 @@ func (s *Server) healthz(w http.ResponseWriter, r *http.Request) {
 		writeRaw(w, http.StatusServiceUnavailable, map[string]string{"status": "unavailable"})
 		return
 	}
+	if s.pending(ctx) {
+		writeRaw(w, http.StatusServiceUnavailable, map[string]string{"status": "migrating"})
+		return
+	}
 	writeRaw(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
@@ -168,6 +199,20 @@ func KeyName(ctx context.Context) string {
 // protect applies authentication and the per-key rate limit.
 func (s *Server) protect(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h := w.Header()
+		h.Set("Cache-Control", "no-store")
+		h.Set("X-Content-Type-Options", "nosniff")
+		if keyInURL(r.URL.RawQuery) {
+			s.WriteError(w, r, http.StatusBadRequest, ErrorBody{
+				Code:    "key_in_url",
+				Message: "API keys must be sent in the Authorization header, never in the URL; treat this key as exposed and revoke it",
+			})
+			return
+		}
+		if s.pending(r.Context()) {
+			s.WriteError(w, r, http.StatusServiceUnavailable, ErrorBody{Code: "migrating", Message: "schema migrations are pending"})
+			return
+		}
 		token, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
 		if !ok {
 			token = ""
@@ -226,3 +271,53 @@ func (s *Server) logged(next http.Handler) http.Handler {
 type holderKey struct{}
 
 type keyHolder struct{ name string }
+
+var (
+	keyParamNames = map[string]bool{
+		"apikey": true, "api_key": true, "api-key": true, "key": true,
+		"token": true, "access_token": true, "authorization": true,
+	}
+	keyValueRe = regexp.MustCompile(`^bskg_[0-9a-f]{16}_`)
+)
+
+// keyInURL reports whether a query string carries something that looks like
+// an API key: a parameter with a credential name or a value in the key format.
+func keyInURL(rawQuery string) bool {
+	if rawQuery == "" {
+		return false
+	}
+	// ParseQuery returns the pairs it could parse even when it reports an error.
+	vals, _ := url.ParseQuery(rawQuery)
+	for k, vs := range vals {
+		if keyParamNames[strings.ToLower(k)] || keyValueRe.MatchString(k) {
+			return true
+		}
+		for _, v := range vs {
+			if keyValueRe.MatchString(strings.TrimSpace(v)) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// pending reports whether migrations are pending, cached for MetaCacheTTL.
+func (s *Server) pending(ctx context.Context) bool {
+	if s.cfg.Pending == nil {
+		return false
+	}
+	now := s.cfg.Now()
+	s.pendMu.Lock()
+	defer s.pendMu.Unlock()
+	if now.Before(s.pendExp) {
+		return s.pendVal
+	}
+	ctx, cancel := context.WithTimeout(ctx, HealthTimeout)
+	defer cancel()
+	v, err := s.cfg.Pending(ctx)
+	if err != nil {
+		return false
+	}
+	s.pendVal, s.pendExp = v, now.Add(MetaCacheTTL)
+	return v
+}

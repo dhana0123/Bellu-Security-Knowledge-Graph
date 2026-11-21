@@ -45,83 +45,73 @@ const str = (v: unknown, d = ''): string => (typeof v === 'string' ? v : v == nu
 const num = (v: unknown, d = 0): number => (typeof v === 'number' && Number.isFinite(v) ? v : d);
 const strList = (v: unknown): string[] => arr(v).map((x) => str(x)).filter((x) => x !== '');
 
+function normalizeEnvSources(v: Json): NonNullable<GraphEnvelope['sources']> {
+  const out: NonNullable<GraphEnvelope['sources']> = {};
+  for (const [k, o] of Object.entries(v)) {
+    out[k] = { lastSuccess: isObj(o) && o.lastSuccess != null ? str(o.lastSuccess) : null };
+  }
+  return out;
+}
+
 export function parseEnvelope(body: unknown): GraphEnvelope | null {
   if (!isObj(body) || !isObj(body.graph)) return null;
   const g = body.graph;
   return {
     version: typeof g.version === 'string' ? g.version : undefined,
     buildState: str(g.buildState, 'unknown'),
-    buildMode: str(g.buildMode, 'unknown'),
+    buildMode: typeof g.buildMode === 'string' ? g.buildMode : null,
     stale: typeof g.stale === 'boolean' ? g.stale : undefined,
-    sources: isObj(g.sources) ? (g.sources as GraphEnvelope['sources']) : undefined,
+    sources: isObj(g.sources) ? normalizeEnvSources(g.sources) : undefined,
   };
 }
 
-function toCounts(v: unknown): CountEntry[] {
-  if (Array.isArray(v)) {
-    return v.filter(isObj).map((o) => ({
-      name: str(o.name ?? o.label ?? o.type ?? o.year ?? o.severity ?? o.key),
-      count: num(o.count ?? o.n),
-    }));
-  }
-  if (isObj(v)) return Object.entries(v).map(([name, count]) => ({ name, count: num(count) }));
-  return [];
+function toCounts(v: unknown, nameKey: string): CountEntry[] {
+  return arr(v)
+    .filter(isObj)
+    .map((o) => ({ name: str(o[nameKey]), count: num(o.count) }));
 }
 
 function toTop(v: unknown): TopEntry[] {
   return arr(v)
     .filter(isObj)
-    .map((o) => ({ key: str(o.key ?? o.name), count: num(o.count ?? o.n) }));
+    .map((o) => ({ key: str(o.key), count: num(o.count) }));
 }
 
+/** One /v1/status "sources" entry (also used by /v1/stats "sync"). */
+function toSync(o: Json): SyncEntry {
+  const last = isObj(o.lastRun) ? o.lastRun : null;
+  return {
+    source: str(o.source),
+    status: o.neverRun === true || !last ? 'never run' : str(last.status, 'unknown'),
+    lastSuccess: o.lastSuccess == null ? null : str(o.lastSuccess),
+    deadLetters: o.deadLetters == null ? null : num(o.deadLetters),
+  };
+}
+
+/** Matches docs/api-shapes.md, GET /v1/stats. */
 export function normalizeStats(body: Json): StatsData {
-  const counts = isObj(body.counts) ? body.counts : body;
-  const ex = isObj(body.exploited) ? body.exploited : isObj(body.exploitedShare) ? body.exploitedShare : {};
-  const top = isObj(body.top10) ? body.top10 : isObj(body.top) ? body.top : body;
-  const syncRaw = body.sync ?? body.syncStatus ?? body.sources;
-  const sync: SyncEntry[] = Array.isArray(syncRaw)
-    ? syncRaw.filter(isObj).map((o) => ({
-        source: str(o.source ?? o.name),
-        status: str(o.status ?? o.lastRunStatus, 'never run'),
-        lastSuccess: o.lastSuccess == null ? null : str(o.lastSuccess),
-        deadLetters: o.deadLetters == null ? null : num(o.deadLetters),
-      }))
-    : isObj(syncRaw)
-      ? Object.entries(syncRaw).map(([source, o]) => {
-          const e = isObj(o) ? o : {};
-          return {
-            source,
-            status: str(e.status ?? e.lastRunStatus, 'never run'),
-            lastSuccess: e.lastSuccess == null ? null : str(e.lastSuccess),
-            deadLetters: e.deadLetters == null ? null : num(e.deadLetters),
-          };
-        })
-      : [];
+  const ex = isObj(body.exploitedShare) ? body.exploitedShare : {};
   return {
     generatedAt: body.generatedAt == null ? null : str(body.generatedAt),
     statsStale: body.statsStale === true,
-    labelCounts: toCounts(counts.labels ?? counts.nodes ?? counts.labelCounts),
-    relationshipCounts: toCounts(counts.relationships ?? counts.relationshipCounts),
-    byYear: toCounts(body.byYear ?? body.cvesByYear ?? body.years).sort((a, b) => a.name.localeCompare(b.name)),
-    bySeverity: toCounts(body.bySeverity ?? body.severity ?? body.cvss),
-    exploited: {
-      exploited: num(ex.exploited),
-      total: num(ex.total),
-      ratio: num(ex.ratio),
-    },
-    topWeaknesses: toTop(top.weaknesses ?? top.topWeaknesses),
-    topVendors: toTop(top.vendors ?? top.topVendors),
-    topProducts: toTop(top.products ?? top.topProducts),
-    sync,
+    labelCounts: toCounts(body.labels, 'label'),
+    relationshipCounts: toCounts(body.relationships, 'type'),
+    byYear: toCounts(body.cvesByYear, 'year'),
+    bySeverity: toCounts(body.cvssDistribution, 'severity'),
+    exploited: { exploited: num(ex.exploited), total: num(ex.total), ratio: num(ex.ratio) },
+    topWeaknesses: toTop(body.topWeaknesses),
+    topVendors: toTop(body.topVendors),
+    topProducts: toTop(body.topProducts),
+    sync: arr(body.sync).filter(isObj).map(toSync),
   };
 }
 
 export function normalizeSources(body: unknown): SourceInfo[] {
-  const list = Array.isArray(body) ? body : isObj(body) ? arr(body.sources ?? body.items) : [];
+  const list = isObj(body) ? arr(body.sources) : [];
   return list.filter(isObj).map((o) => ({
     name: str(o.name),
     license: str(o.license),
-    attribution: str(o.attribution ?? o.attributionText),
+    attribution: str(o.attribution),
   }));
 }
 
@@ -257,6 +247,7 @@ export function createClient(opts: ClientOptions) {
             publishedDate: o.publishedDate == null ? null : str(o.publishedDate),
             description: o.description == null ? null : str(o.description),
             v3baseScore: typeof o.v3baseScore === 'number' ? o.v3baseScore : null,
+            v3baseSeverity: o.v3baseSeverity == null ? null : str(o.v3baseSeverity),
             exploitability: o.exploitability == null ? null : str(o.exploitability),
             kev: typeof o.kev === 'boolean' ? o.kev : null,
             sources: strList(o.sources),

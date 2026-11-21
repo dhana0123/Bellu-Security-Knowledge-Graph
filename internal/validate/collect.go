@@ -90,8 +90,6 @@ RETURN count(v)`
 	rejectSampleQuery = `MATCH (v:Vulnerability)
 WHERE v.description STARTS WITH '** REJECT **' AND coalesce(v.rejected, false) = false
 RETURN toString(v.cveID) ORDER BY v.cveID LIMIT 100`
-
-	loaderJobQuery = `OPTIONAL MATCH (j:Job {name: 'baseline-load'}) RETURN properties(j)`
 )
 
 func readOne(ctx context.Context, c *graph.Client, q string) (neo4j.Record, bool, error) {
@@ -138,7 +136,7 @@ func readInt(ctx context.Context, c *graph.Client, q string) (int64, error) {
 }
 
 // CollectCounts runs the node, relationship, and derived-exploit counts and
-// returns the metric map that CompareCounts expects.
+// returns the metric map.
 func CollectCounts(ctx context.Context, c *graph.Client) (map[string]int64, error) {
 	out := map[string]int64{}
 	for _, m := range []map[string]string{nodeCountQueries, relCountQueries} {
@@ -179,8 +177,7 @@ func first(l []string) string {
 	return l[0]
 }
 
-// CollectIntegrity gathers the catalog, duplicate, endpoint, REJECT, and
-// loader data. Profile and the count sections are set by the caller.
+// CollectIntegrity gathers the catalog, duplicate, endpoint, and REJECT data.
 func CollectIntegrity(ctx context.Context, c *graph.Client) (Inputs, error) {
 	var in Inputs
 	rows, err := readAll(ctx, c, showConstraintsQuery)
@@ -251,32 +248,21 @@ func CollectIntegrity(ctx context.Context, c *graph.Client) (Inputs, error) {
 		}
 	}
 	in.Reject = NewRejectCheck(n, ids)
-	rec, ok, err := readOne(ctx, c, loaderJobQuery)
-	if err != nil {
-		return in, fmt.Errorf("loader counts: %w", err)
-	}
-	props := map[string]any{}
-	if ok {
-		props, _ = rec.Values[0].(map[string]any)
-	}
-	in.Loader = LoaderCountsFromProps(props)
 	return in, nil
 }
 
-// Run collects everything for profile ("baseline" includes the count
-// comparison against exp) and returns the report.
-func Run(ctx context.Context, c *graph.Client, profile string, exp *Expected, disc []Discrepancy) (Report, error) {
+// Run collects the integrity checks and the counts and returns the report.
+func Run(ctx context.Context, c *graph.Client) (Report, error) {
 	in, err := CollectIntegrity(ctx, c)
 	if err != nil {
 		return Report{}, err
 	}
-	in.Profile, in.Expected, in.Discrepancy = profile, exp, disc
-	if exp != nil {
-		if in.Counts, err = CollectCounts(ctx, c); err != nil {
-			return Report{}, err
-		}
+	counts, err := CollectCounts(ctx, c)
+	if err != nil {
+		return Report{}, err
 	}
 	r := BuildReport(in)
+	r.Counts = counts
 	r.GeneratedAt = time.Now().UTC().Format(time.RFC3339)
 	return r, nil
 }

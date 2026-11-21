@@ -95,7 +95,7 @@ func TestAuthenticatedRouteHasEnvelope(t *testing.T) {
 		t.Fatalf("unexpected body %v", m)
 	}
 	src := g["sources"].(map[string]any)
-	for _, s := range []string{"vulkg", "nvd"} {
+	for _, s := range []string{"cwe", "nvd", "exploitdb"} {
 		v, ok := src[s].(map[string]any)
 		if !ok || v["lastSuccess"] != nil {
 			t.Fatalf("source %s: %v", s, src)
@@ -163,7 +163,7 @@ func TestQueryTimeout504(t *testing.T) {
 
 func TestRequestLogHasNameAndPathOnly(t *testing.T) {
 	e := newEnv(t, 10, nil)
-	e.do("/v1/thing/abc?token=SECRETQ", "Bearer bskg_good")
+	e.do("/v1/thing/abc?q=SECRETQ", "Bearer bskg_good")
 	e.do("/v1/thing/abc", "Bearer bskg_bad")
 	out := e.log.String()
 	for _, bad := range []string{"bskg_good", "bskg_bad", "SECRETQ"} {

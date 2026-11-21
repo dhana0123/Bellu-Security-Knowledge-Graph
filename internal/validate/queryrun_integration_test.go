@@ -22,30 +22,31 @@ func queryClient(t *testing.T) *graph.Client {
 	return c
 }
 
-// All nine queries run on an empty graph: they execute without error and a
-// missing recorded result or a data mismatch is reported, not an exception.
+// All nine queries run on an empty graph without a query error.
 func TestQueriesExecuteOnEmptyGraph(t *testing.T) {
 	c := queryClient(t)
 	ctx := context.Background()
 	if _, err := c.Auto(ctx, `CREATE FULLTEXT INDEX VulnerabilityDescriptionFullTextSchema IF NOT EXISTS FOR (v:Vulnerability) ON EACH [v.description]`, nil); err != nil {
 		t.Fatal(err)
 	}
-	res, err := validate.RunQueries(ctx, c, validate.ProfileFixture)
+	params := map[string]map[string]any{
+		"lookup_cve":               {"cveID": "CVE-2019-1005"},
+		"weakness_vulnerabilities": {"cweID": "CWE-89"},
+		"product_vulnerabilities":  {"productName": "openssl"},
+		"vendor_products":          {"vendorName": "apache"},
+		"vulnerability_exploits":   {"cveID": "CVE-2019-1002"},
+		"vulnerability_domains":    {"cveID": "CVE-2019-1004"},
+		"fulltext_description":     {"query": "12"},
+		"published_range":          {"from": "2019-03-01", "to": "2019-04-30"},
+		"cvss_v3_version":          {"v3version": 3.0},
+	}
+	res, err := validate.RunQueries(ctx, c, params)
 	if err != nil || len(res) != 9 {
 		t.Fatalf("%d %v", len(res), err)
 	}
 	for _, r := range res {
-		if r.Passed || r.Diff == nil {
-			t.Errorf("%s: empty graph should differ from the fixture expectation: %+v", r.Name, r)
-		}
-		if r.Message != "" && len(r.Message) > 8 && r.Message[:8] == "query fa" {
-			t.Errorf("%s: %s", r.Name, r.Message)
+		if !r.Passed || r.Rows != 0 {
+			t.Errorf("%s: %+v", r.Name, r)
 		}
 	}
-}
-
-// With the fixture graph loaded by the baseline loader (task 5.x), the derived
-// expected files must hold. Set BSKG_FIXTURE_LOADED=1 after loading to run.
-func TestFixtureExpectedMatchesLoadedGraph(t *testing.T) {
-	t.Skip("needs the fixture graph from the baseline loader; run on the first container run and compare with the derived files")
 }

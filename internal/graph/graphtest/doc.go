@@ -1,5 +1,5 @@
 // Package graphtest is the Neo4j test-container harness (build tag
-// "integration"). It starts one neo4j:5.26.33-community container per test
+// "integration"). It starts one neo4j:2026.10.2-community container per test
 // package (2 GB memory limit, 512 MB heap, 512 MB page cache), resets the
 // database between tests, and offers a dialer that blocks every outbound
 // connection except the container's.

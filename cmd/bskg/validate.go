@@ -15,7 +15,7 @@ import (
 )
 
 // validateExit maps an Execute outcome to the process exit code (Requirements
-// 5.10 to 5.12): 0 passed, 1 failed validation or any error.
+// 13.11 to 13.13): 0 passed, 1 failed validation or any error.
 func validateExit(rep validate.Report, err error) int {
 	if err != nil || !rep.Passed() {
 		return 1
@@ -25,30 +25,19 @@ func validateExit(rep validate.Report, err error) int {
 
 // printSummary writes the stdout summary.
 func printSummary(w io.Writer, rep validate.Report, out string) {
-	fmt.Fprintf(w, "validation %s (profile %s)\n", rep.Status, rep.Profile)
+	fmt.Fprintf(w, "validation %s\n", rep.Status)
 	for _, f := range rep.Failed {
 		fmt.Fprintf(w, "  failed: %s\n", f)
 	}
 	fmt.Fprintf(w, "report: %s\n", out)
 }
 
-// runValidate implements `bskg validate [--profile baseline|integrity]
-// [--out file] [--update-expected]`. The profile "fixture" is accepted for
-// tests against testdata/baseline and is not listed in the usage text.
+// runValidate implements `bskg validate [--out file]`.
 func runValidate(args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("validate", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	profile := fs.String("profile", "baseline", "baseline or integrity")
 	out := fs.String("out", validate.DefaultOut, "report file")
-	update := fs.Bool("update-expected", false, "regenerate representative query expected results")
 	if err := fs.Parse(args); err != nil {
-		return 2
-	}
-	p := validate.Profile(*profile)
-	switch p {
-	case validate.ProfileBaseline, validate.ProfileIntegrity, validate.ProfileFixture:
-	default:
-		fmt.Fprintf(stderr, "bskg: validate: unknown profile %q (want baseline or integrity)\n", *profile)
 		return 2
 	}
 	cfg, err := config.Load(config.ScopeCore)
@@ -68,7 +57,7 @@ func runValidate(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "bskg: validate: connect: %v\n", err)
 		return 1
 	}
-	rep, err := validate.Execute(ctx, c, p, validate.Options{Out: *out, UpdateExpected: *update})
+	rep, err := validate.Execute(ctx, c, validate.Options{Out: *out})
 	if err != nil {
 		fmt.Fprintf(stderr, "bskg: validate: %v\n", err)
 	}

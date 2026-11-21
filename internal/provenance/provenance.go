@@ -9,9 +9,6 @@ import (
 	"time"
 )
 
-// SourceVulKG is the source name used for every baseline write.
-const SourceVulKG = "vulkg"
-
 var sourceRe = regexp.MustCompile(`^[a-z][a-z0-9]{0,15}$`)
 
 // ValidSource reports whether name may be used as a property prefix.
@@ -53,4 +50,31 @@ func SetClause(v, src string) (string, error) {
 			"WHEN '%[2]s' IN %[1]s.sources THEN %[1]s.sources ELSE %[1]s.sources + '%[2]s' END, "+
 			"%[1]s.p_%[2]s_run = $runID, %[1]s.p_%[2]s_at = $at, %[1]s.p_%[2]s_ref = $ref",
 		v, src), nil
+}
+
+// RemovedKeyOf returns p_<src>_removed without validating src. Callers pass
+// source names that were already validated.
+func RemovedKeyOf(src string) string { return "p_" + src + "_removed" }
+
+// RemovedKey returns p_<src>_removed for a validated source name.
+func RemovedKey(src string) (string, error) { return Key(src, "removed") }
+
+// MergeSources returns list with src appended once, preserving order. The
+// input slice is not modified.
+func MergeSources(list []string, src string) []string {
+	for _, s := range list {
+		if s == src {
+			return append([]string(nil), list...)
+		}
+	}
+	return append(append([]string(nil), list...), src)
+}
+
+// RemovedSet returns the properties that mark src as having dropped an item.
+func RemovedSet(src string, removed bool) (map[string]any, error) {
+	k, err := RemovedKey(src)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{k: removed}, nil
 }

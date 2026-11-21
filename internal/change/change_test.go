@@ -1,25 +1,9 @@
 package change
 
 import (
-	"encoding/json"
 	"testing"
 	"time"
 )
-
-func TestNewBaselineLoad(t *testing.T) {
-	at := time.Date(2024, 5, 6, 7, 8, 9, 123456789, time.UTC)
-	r, err := NewBaselineLoad("RUN1", "vulkg", BaselineSummary{Commit: "abc", Nodes: 3, Relationships: 2}, at)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if r.Type != TypeBaselineLoad || r.EntityKey != "BaselineLoad:RUN1" || r.At.Nanosecond() != 123000000 {
-		t.Fatalf("%+v", r)
-	}
-	var s BaselineSummary
-	if err := json.Unmarshal([]byte(r.NewValue), &s); err != nil || s.Commit != "abc" || s.Nodes != 3 || s.Relationships != 2 {
-		t.Fatalf("%v %+v", err, s)
-	}
-}
 
 func TestNewIDMonotonic(t *testing.T) {
 	at := time.Now()
@@ -33,5 +17,26 @@ func TestNewIDMonotonic(t *testing.T) {
 			t.Fatalf("id %q not after %q", id, prev)
 		}
 		prev = id
+	}
+}
+
+func TestEncodeTyped(t *testing.T) {
+	d := time.Date(2024, 1, 2, 0, 0, 0, 0, time.UTC)
+	if got := EncodeValue(d); got != `{"$date":"2024-01-02"}` {
+		t.Fatal(got)
+	}
+	dt := time.Date(2024, 1, 2, 3, 4, 5, 0, time.UTC)
+	if got := EncodeValue(dt); got != `{"$datetime":"2024-01-02T03:04:05Z"}` {
+		t.Fatal(got)
+	}
+	if got := EncodeProps(map[string]any{"n": 3, "l": []time.Time{d}}); got != `{"l":[{"$date":"2024-01-02"}],"n":3}` {
+		t.Fatal(got)
+	}
+	if EncodeValue(nil) != "null" {
+		t.Fatal("nil")
+	}
+	r := Builder{Source: "nvd", RunID: "r"}.PropertyChanged("k", "f", 1, nil)
+	if r.Type != TypePropertyChanged || r.OldValue != "1" || r.NewValue != "null" {
+		t.Fatal(r)
 	}
 }

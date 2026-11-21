@@ -20,7 +20,8 @@ func lintQuery(q string) []string {
 		out = append(out, "CALL ... IN TRANSACTIONS")
 	}
 	for _, m := range callRe.FindAllStringSubmatch(q, -1) {
-		if m[1] != "db.index.fulltext.queryNodes" {
+		// "CALL {" is a read-only subquery (writes inside it hit the token check).
+		if m[1] != "" && m[1] != "db.index.fulltext.queryNodes" {
 			out = append(out, "forbidden CALL "+m[1])
 		}
 	}

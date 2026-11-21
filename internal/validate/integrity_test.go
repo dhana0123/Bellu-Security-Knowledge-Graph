@@ -23,7 +23,7 @@ func goodIndexes() []CatalogIndex {
 }
 
 func goodInputs() Inputs {
-	in := Inputs{Profile: "integrity", Constraints: goodConstraints(), Indexes: goodIndexes(), Reject: NewRejectCheck(0, nil)}
+	in := Inputs{Constraints: goodConstraints(), Indexes: goodIndexes(), Reject: NewRejectCheck(0, nil)}
 	for _, r := range RequiredConstraints {
 		in.Duplicates = append(in.Duplicates, NewDuplicateCheck(r.Label, r.Prop, nil))
 	}
@@ -75,43 +75,8 @@ func TestCapsAtMaxExamples(t *testing.T) {
 	}
 }
 
-func TestCountsFeedStatus(t *testing.T) {
-	in := goodInputs()
-	exp, _ := LoadExpected(ProfileBaseline)
-	disc, _ := LoadDiscrepancies()
-	in.Expected, in.Discrepancy = &exp, disc
-	in.Counts = map[string]int64{}
-	for k, v := range exp.Metrics {
-		in.Counts[k] = v
-	}
-	in.Counts["AFFECTS"] = 212656 // known discrepancy
-	if r := BuildReport(in); !r.Passed() {
-		t.Fatalf("%v", r.Failed)
-	}
-	in.Counts["Author"]++
-	r := BuildReport(in)
-	if r.Passed() || r.Failed[0] != "count:Author" {
-		t.Fatalf("%v", r.Failed)
-	}
-}
-
-func TestLoaderCountsFromProps(t *testing.T) {
-	lc := LoaderCountsFromProps(map[string]any{
-		"name": "baseline-load", "missing_exploits_rel": int64(3), "missing_product_affects": int64(2),
-		"rejectDeleted": int64(5), "bareNodes": int64(1), "rowsDone": int64(9),
-	})
-	if lc.MissingEndpoints["exploits_rel"] != 3 || lc.MissingEndpoints["product_affects"] != 2 ||
-		len(lc.MissingEndpoints) != 2 || *lc.RejectDeleted != 5 || *lc.BareNodes != 1 {
-		t.Fatalf("%+v", lc)
-	}
-	if e := LoaderCountsFromProps(nil); e.RejectDeleted != nil || e.BareNodes != nil {
-		t.Fatal("absent should be nil")
-	}
-}
-
 func TestReportJSON(t *testing.T) {
 	in := goodInputs()
-	in.Loader = LoaderCountsFromProps(map[string]any{"rejectDeleted": int64(4)})
 	b, err := json.Marshal(BuildReport(in))
 	if err != nil {
 		t.Fatal(err)
@@ -120,12 +85,12 @@ func TestReportJSON(t *testing.T) {
 	if err := json.Unmarshal(b, &m); err != nil {
 		t.Fatal(err)
 	}
-	for _, k := range []string{"profile", "status", "failed", "schema", "duplicates", "endpoints", "reject", "loader"} {
+	for _, k := range []string{"status", "failed", "schema", "duplicates", "endpoints", "reject"} {
 		if _, ok := m[k]; !ok {
 			t.Errorf("missing key %s", k)
 		}
 	}
-	if m["status"] != "passed" || m["loader"].(map[string]any)["rejectDeleted"].(float64) != 4 {
+	if m["status"] != "passed" {
 		t.Fatalf("%s", b)
 	}
 }

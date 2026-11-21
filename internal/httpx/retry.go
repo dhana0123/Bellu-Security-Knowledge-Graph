@@ -23,8 +23,10 @@ type Policy struct {
 
 // Ready-made schedules from the design (Property 32).
 var (
-	// DownloadPolicy is used by the baseline download: 1, 2, 4 s, 3 retries.
-	DownloadPolicy = Policy{Retries: 3, Base: time.Second}
+	// CWEPolicy is used by the MITRE CWE download: waits of 2 and 4 s, 3 attempts in total.
+	CWEPolicy = Policy{Retries: 2, Base: 2 * time.Second}
+	// ExploitDBPolicy is used by the Exploit-DB download: 5, 10, 20 s, 3 retries.
+	ExploitDBPolicy = Policy{Retries: 3, Base: 5 * time.Second}
 	// NVDPolicy: 2 s doubling, cap 60 s, 5 retries.
 	NVDPolicy = Policy{Retries: 5, Base: 2 * time.Second, Cap: 60 * time.Second}
 	// OSVPolicy is used by OSV and GHSA: 1 s doubling, 3 retries.

@@ -146,48 +146,50 @@ func TestInstanceMetadataV2AndEncryption(t *testing.T) {
 	}
 }
 
-func TestBaselineIAMPolicy(t *testing.T) {
+func TestNoS3AndNoWideIAM(t *testing.T) {
 	src := readInfra(t)
-	docs := blocks(src, regexp.MustCompile(`data\s+"aws_iam_policy_document"\s+"baseline_read"\s*\{`))
-	if len(docs) != 1 {
-		t.Fatal("data.aws_iam_policy_document.baseline_read not found")
+	if regexp.MustCompile(`resource\s+"aws_s3_`).MatchString(src) {
+		t.Error("aws_s3_* resource found; the design has no S3 (Requirement 24.4)")
 	}
-	stmts := blocks(docs[0], regexp.MustCompile(`(?m)^\s*statement\s*\{`))
-	if len(stmts) != 2 {
-		t.Fatalf("want 2 statements, got %d", len(stmts))
+	if regexp.MustCompile(`s3:`).MatchString(src) {
+		t.Error("s3: action found in infra")
 	}
-	var sawGet, sawList bool
-	for _, s := range stmts {
-		if strings.Contains(s, `effect`) && !strings.Contains(attr(s, "effect"), "Allow") {
-			t.Error("statement effect must be Allow")
-		}
-		switch attr(s, "actions") {
-		case `["s3:GetObject"]`:
-			sawGet = true
-			if r := attr(s, "resources"); r != `["${aws_s3_bucket.baseline.arn}/vulkg/*"]` {
-				t.Errorf("GetObject resources = %s, want only the vulkg/* prefix", r)
-			}
-		case `["s3:ListBucket"]`:
-			sawList = true
-			if r := attr(s, "resources"); r != `[aws_s3_bucket.baseline.arn]` {
-				t.Errorf("ListBucket resources = %s", r)
-			}
-			c := blocks(s, regexp.MustCompile(`condition\s*\{`))
-			if len(c) != 1 || attr(c[0], "variable") != `"s3:prefix"` || attr(c[0], "values") != `["vulkg/*"]` {
-				t.Error("ListBucket needs a condition limiting s3:prefix to vulkg/*")
-			}
-		default:
-			t.Errorf("unexpected actions %s in baseline_read", attr(s, "actions"))
-		}
-	}
-	if !sawGet || !sawList {
-		t.Errorf("missing statements: GetObject=%v ListBucket=%v", sawGet, sawList)
-	}
-	// The role policy must use this document and no other S3 grants may exist.
-	if regexp.MustCompile(`s3:(\*|Put|Delete)`).MatchString(src) {
-		t.Error("write or wildcard S3 actions found")
+	if regexp.MustCompile(`resource\s+"aws_iam_role_policy"\s+"(baseline|host)\w*"`).MatchString(src) {
+		t.Error("the host role must carry no inline policy")
 	}
 	if regexp.MustCompile(`"AdministratorAccess"|policy/Admin`).MatchString(src) {
 		t.Error("administrator policy attachment found")
+	}
+}
+
+func varDefault(t *testing.T, src, name string) string {
+	t.Helper()
+	v := blocks(src, regexp.MustCompile(`variable\s+"`+name+`"\s*\{`))
+	if len(v) != 1 {
+		t.Fatalf("variable %s not found", name)
+	}
+	return attr(v[0], "default")
+}
+
+func TestArm64HostDefaults(t *testing.T) {
+	src := readInfra(t)
+	if got := varDefault(t, src, "instance_type"); got != `"t4g.large"` {
+		t.Errorf("instance_type default = %s, want t4g.large", got)
+	}
+	if got := varDefault(t, src, "data_volume_size_gb"); got != "50" {
+		t.Errorf("data_volume_size_gb default = %s, want 50", got)
+	}
+	if got := varDefault(t, src, "snapshot_retain_count"); got != "3" {
+		t.Errorf("snapshot_retain_count default = %s, want 3", got)
+	}
+	ami := blocks(src, regexp.MustCompile(`data\s+"aws_ami"\s+"ubuntu"\s*\{`))
+	if len(ami) != 1 || !strings.Contains(ami[0], "ubuntu-jammy-22.04-arm64-server-*") || !strings.Contains(ami[0], `values = ["arm64"]`) {
+		t.Error("AMI must filter for the Ubuntu 22.04 arm64 server image and architecture arm64")
+	}
+	for _, in := range blocks(src, regexp.MustCompile(`resource\s+"aws_instance"\s+"\w+"\s*\{`)) {
+		md := blocks(in, regexp.MustCompile(`metadata_options\s*\{`))
+		if len(md) != 1 || attr(md[0], "http_put_response_hop_limit") != "1" {
+			t.Error("aws_instance must set http_put_response_hop_limit = 1")
+		}
 	}
 }

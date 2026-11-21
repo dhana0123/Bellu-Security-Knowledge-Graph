@@ -11,19 +11,33 @@ variable "name_prefix" {
 }
 
 variable "instance_type" {
-  description = "EC2 instance type. m6i.xlarge (16 GB) recommended, m6i.large (8 GB) minimum."
+  description = "EC2 arm64 instance type with at least 8 GB RAM. t4g.large (8 GB) is the default; use t4g.xlarge or m7g.xlarge (16 GB) for a larger profile."
   type        = string
-  default     = "m6i.xlarge"
+  default     = "t4g.large"
+  validation {
+    condition     = can(regex("^(t4g\\.(large|xlarge|2xlarge)|(m6g|m7g|r6g|r7g)\\.(large|xlarge|2xlarge|4xlarge|8xlarge|12xlarge|16xlarge))$", var.instance_type))
+    error_message = "instance_type must be an arm64 type with at least 8 GB RAM (t4g.large and up, or m6g, m7g, r6g, r7g from large)."
+  }
+}
+
+variable "cpu_credits" {
+  description = "CPU credit mode of the burstable t4g instance. unlimited avoids throttling during the long full build at extra cost; standard is cheaper but slower."
+  type        = string
+  default     = "unlimited"
+  validation {
+    condition     = contains(["unlimited", "standard"], var.cpu_credits)
+    error_message = "cpu_credits must be unlimited or standard."
+  }
 }
 
 variable "data_volume_size_gb" {
-  description = "Size of the Neo4j data volume in GB (minimum 50)."
+  description = "Size of the Neo4j data volume in GB (minimum 30, default 50)."
   type        = number
-  default     = 100
+  default     = 50
 
   validation {
-    condition     = var.data_volume_size_gb >= 50
-    error_message = "data_volume_size_gb must be at least 50."
+    condition     = var.data_volume_size_gb >= 30
+    error_message = "data_volume_size_gb must be at least 30."
   }
 }
 
@@ -31,11 +45,6 @@ variable "root_volume_size_gb" {
   description = "Size of the encrypted root volume in GB."
   type        = number
   default     = 30
-}
-
-variable "baseline_bucket_name" {
-  description = "Globally unique name of the private S3 bucket that holds the VulKG baseline files."
-  type        = string
 }
 
 variable "api_allowed_cidrs" {
@@ -74,7 +83,7 @@ variable "repo_ref" {
 variable "snapshot_retain_count" {
   description = "Number of daily EBS snapshots to retain."
   type        = number
-  default     = 7
+  default     = 3
 }
 
 variable "tags" {

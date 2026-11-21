@@ -16,7 +16,7 @@ func TestRunExitCodes(t *testing.T) {
 		{[]string{"baseline"}, 2},
 		{[]string{"baseline", "x"}, 2},
 		{[]string{"migrate"}, 1},
-		{[]string{"baseline", "load"}, 1},
+		{[]string{"baseline", "load"}, 2},
 		{[]string{"apikey", "create", "n"}, 1},
 	}
 	for _, c := range cases {

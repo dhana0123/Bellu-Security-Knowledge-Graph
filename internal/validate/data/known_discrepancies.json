@@ -1,7 +1,0 @@
-[
-{"id":"affects-count","metric":"AFFECTS","kind":"count","observed":[212654,212656],"note":"Table IV states 212654; the deployment script comment states 212656."},
-{"id":"exploits-count","metric":"EXPLOITS","kind":"count","observed":[28791],"note":"28791 is reported at two script steps (relationship load and exploitability recompute)."},
-{"id":"cvss-type","metric":"cvssScoreType","kind":"property","observed":[],"note":"VulKG casts several CVSS scores with toInteger; BSKG stores decimals."},
-{"id":"empty-field-presence","metric":"emptyFieldPresence","kind":"property","observed":[],"note":"Empty CSV fields are absent properties; apoc.load.csv may return empty strings."},
-{"id":"exploit-date-order","metric":"exploitDateOrder","kind":"property","observed":[],"note":"VulKG leaves exploitDate order undefined; BSKG sorts ascending."}
-]

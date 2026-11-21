@@ -44,6 +44,7 @@ func Routes(s *Server, q func(ctx context.Context, query string, params map[stri
 	s.Handle("GET /products/{name}", e.product)
 	s.Handle("GET /vendors/{name}", e.vendor)
 	s.Handle("GET /exploits/{eid}", e.exploit)
+	s.Handle("GET /sources", e.sourcesHandler)
 }
 
 var (

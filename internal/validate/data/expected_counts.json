@@ -1,4 +1,0 @@
-{"profile":"baseline","source":"VulKG paper Table IV","metrics":{
-"Vulnerability":148609,"Exploit":43743,"Weakness":926,"Product":44269,"Vendor":20347,"Author":9204,"Domain":9578,
-"EXPLOITS":28791,"AFFECTS":212654,"BELONGS_TO":47509,"EXAMPLE_OF":71031,"WRITES":43743,"REFERS_TO":429728,
-"exploitableVulnerability":23660,"exactlyOneExploit":20689,"moreThanOneExploit":2971}}

@@ -1,0 +1,7 @@
+.git
+ui/node_modules
+ui/dist
+deploy/.env
+.env
+bskg
+validation-report.json

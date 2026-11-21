@@ -15,7 +15,7 @@ import (
 func TestPropertyUnknownSubcommands(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		arg := rapid.String().Draw(t, "arg")
-		if commands[arg] || arg == "baseline" {
+		if commands[arg] {
 			t.Skip()
 		}
 		extra := rapid.SliceOfN(rapid.String(), 0, 3).Draw(t, "extra")

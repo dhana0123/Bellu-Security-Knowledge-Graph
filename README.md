@@ -14,9 +14,9 @@ TODO: expand (see the design document).
 
 ## Phases
 
-1. Phase 1: VulKG baseline, NVD sync, REST API.
+1. Phase 1: MITRE CWE, NVD, Exploit-DB metadata, REST API, Client UI.
 2. Phase 2: OSV, GHSA, CISA KEV, EPSS.
-3. Phase 3: MITRE CWE, ATT&CK, ATLAS.
+3. Phase 3: CAPEC, ATT&CK, ATLAS links.
 
 Results of each phase are recorded in `docs/phase-results.md`.
 
@@ -30,7 +30,6 @@ Every data source, with license, attribution, and permitted use, is listed in
 | Command | Purpose |
 | --- | --- |
 | `bskg migrate` | Apply schema migrations |
-| `bskg baseline load` | Load the VulKG baseline |
 | `bskg validate` | Run integrity validation |
 | `bskg sync` | Run a source sync |
 | `bskg worker` | Run the build queue and daily schedule |

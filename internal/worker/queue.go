@@ -1,12 +1,11 @@
 // Package worker runs the Build_Job_Queue: an ordered list of named jobs
-// (migrate, baseline-load, baseline-validate, later nvd-catch-up) with retry,
-// persisted state, and a buildState value written at every transition.
+// (migrate, cwe, nvd-catch-up, exploitdb) with retry, persisted state, and a
+// buildState value written at every transition (Requirement 11).
 //
-// Persistence: each job is a (:Job {name}) node. The baseline loader already
-// owns (:Job {name:"baseline-load"}) for step progress (currentStep,
-// rowsDone, ...). The queue therefore writes only properties prefixed with
-// "queue" (queueState, queueAttempts, queueError, queueUpdatedAt) and never
-// touches the loader's properties. buildState lives on (:BuildMeta {id:"build"}).
+// Persistence: each job is a (:Job {name}) node with the properties
+// queueState, queueAttempts, queueError, queueMode, queueLimit,
+// queueStartedAt, queueEndedAt, queueUpdatedAt. buildState lives on
+// (:BuildMeta {id:"build"}).
 package worker
 
 import (
@@ -19,19 +18,20 @@ import (
 
 // Job names in queue order.
 const (
-	JobMigrate          = "migrate"
-	JobBaselineLoad     = "baseline-load"
-	JobBaselineValidate = "baseline-validate"
+	JobMigrate  = "migrate"
+	JobCWE      = "cwe"
+	JobNVD      = "nvd-catch-up"
+	JobExploits = "exploitdb"
 )
 
-// Build states written to (:BuildMeta).buildState. A stopped queue keeps the
-// state of the job that failed, so there is no separate failed state.
+// Build states written to (:BuildMeta).buildState. The value names the job
+// that is running. A stopped queue keeps the state of the job that failed.
 const (
-	StateMigrating   = "migrating"
-	StateLoadingBase = "loading_baseline"
-	StateValidating  = "validating"
-	StateNVDCatchUp  = "nvd_catch_up"
-	StateReady       = "ready"
+	StateMigrating      = "migrating"
+	StateLoadingCWE     = "loading_cwe"
+	StateNVDCatchUp     = "nvd_catch_up"
+	StateLoadingExploit = "loading_exploits"
+	StateReady          = "ready"
 )
 
 // Queue job states stored in (:Job).queueState.
@@ -39,27 +39,32 @@ const (
 	JobRunning   = "running"
 	JobSucceeded = "succeeded"
 	JobFailed    = "failed"
-	// JobValidationFailed means the job ran to completion but its report
-	// failed. It is not retried. It counts as done only when the continue
-	// flag is set.
-	JobValidationFailed = "validation_failed"
 )
 
 // MaxRetries is the number of retries after the first attempt.
 const MaxRetries = 3
 
-// RetryDelays are the waits before retry 1, 2 and 3 (Requirement 26.4).
-var RetryDelays = [MaxRetries]time.Duration{10 * time.Second, 20 * time.Second, 40 * time.Second}
+// RetryDelays are the waits before retry 1, 2 and 3 (Requirement 11.5).
+var RetryDelays = [MaxRetries]time.Duration{5 * time.Second, 10 * time.Second, 20 * time.Second}
 
-// ErrValidationFailed is returned (possibly wrapped) by a job whose run
-// completed with a failed report. It is a result, not an error: no retry.
-var ErrValidationFailed = errors.New("validation report failed")
+// ErrNotImplemented is returned by a job whose source adapter does not exist
+// yet. It is not retried: the queue stops and the failure is reported.
+var ErrNotImplemented = errors.New("job not implemented")
+
+// RunOptions are the build mode and sample limit a job runs with.
+type RunOptions struct {
+	Mode  string
+	Limit int
+}
 
 // Job is one named step of the queue.
 type Job struct {
 	Name       string
 	BuildState string // written to BuildMeta before the job starts
-	Run        func(ctx context.Context) error
+	// ModeSpecific jobs are done only for the build mode and sample limit
+	// they succeeded with (NVD and Exploit-DB).
+	ModeSpecific bool
+	Run          func(ctx context.Context, opts RunOptions) error
 }
 
 // JobRecord is the persisted queue state of a job.
@@ -67,6 +72,8 @@ type JobRecord struct {
 	State    string // "" when the job never ran
 	Attempts int
 	Error    string
+	Mode     string // build mode of the last run
+	Limit    int    // sample limit of the last run
 }
 
 // Store persists queue state.
@@ -86,34 +93,35 @@ type Outcome struct {
 
 // Queue runs jobs in order.
 type Queue struct {
-	Jobs                     []Job
-	Store                    Store
-	ContinueOnValidationFail bool
-	Log                      *slog.Logger
+	Jobs  []Job
+	Store Store
+	Opts  RunOptions
+	Log   *slog.Logger
 	// Sleep waits for d or until ctx is done. Defaults to a timer wait.
 	Sleep func(ctx context.Context, d time.Duration) error
 }
 
-// Next returns the index of the first job that is not done, or len(jobs)
-// when all are done. It is pure: recs[i] is the persisted record of jobs[i].
-func Next(recs []JobRecord, continueOnValidationFail bool) int {
-	for i, r := range recs {
-		if !Done(r, continueOnValidationFail) {
+// Done reports whether a job is finished for the given mode and limit and may
+// be skipped.
+func Done(j Job, r JobRecord, opts RunOptions) bool {
+	if r.State != JobSucceeded {
+		return false
+	}
+	if j.ModeSpecific {
+		return r.Mode == opts.Mode && r.Limit == opts.Limit
+	}
+	return true
+}
+
+// Next returns the index of the first job that is not done, or len(jobs) when
+// all are done. It is pure: recs[i] is the persisted record of jobs[i].
+func Next(jobs []Job, recs []JobRecord, opts RunOptions) int {
+	for i, j := range jobs {
+		if !Done(j, recs[i], opts) {
 			return i
 		}
 	}
-	return len(recs)
-}
-
-// Done reports whether a job is finished and may be skipped.
-func Done(r JobRecord, continueOnValidationFail bool) bool {
-	switch r.State {
-	case JobSucceeded:
-		return true
-	case JobValidationFailed:
-		return continueOnValidationFail
-	}
-	return false
+	return len(jobs)
 }
 
 // Delay returns the wait before the given retry (1-based), or false when
@@ -160,28 +168,28 @@ func (q *Queue) Run(ctx context.Context) (Outcome, error) {
 		}
 		recs[i] = r
 	}
-	if err := q.Store.SetQueueComplete(ctx, false); err != nil {
-		return Outcome{}, err
-	}
-	for i := Next(recs, q.ContinueOnValidationFail); i < len(q.Jobs); i++ {
-		if Done(recs[i], q.ContinueOnValidationFail) {
-			continue // done jobs after the first pending one cannot occur; defensive
+	first := Next(q.Jobs, recs, q.Opts)
+	if first < len(q.Jobs) {
+		if err := q.Store.SetQueueComplete(ctx, false); err != nil {
+			return Outcome{}, err
 		}
+	}
+	for i := first; i < len(q.Jobs); i++ {
 		j := q.Jobs[i]
+		if Done(j, recs[i], q.Opts) {
+			continue
+		}
 		if err := q.Store.SetBuildState(ctx, j.BuildState); err != nil {
 			return Outcome{}, err
 		}
-		rec, err := q.runJob(ctx, j, recs[i], sleep, log)
+		rec, err := q.runJob(ctx, j, sleep, log)
 		if err != nil {
 			return Outcome{}, err
 		}
 		recs[i] = rec
-		if !Done(rec, q.ContinueOnValidationFail) {
+		if rec.State != JobSucceeded {
 			log.Error("build queue stopped", "job", j.Name, "state", rec.State)
 			return Outcome{StoppedAt: j.Name, Err: errors.New(rec.Error)}, nil
-		}
-		if rec.State == JobValidationFailed {
-			log.Warn("validation failed; continuing because BSKG_CONTINUE_ON_VALIDATION_FAILURE is set", "job", j.Name)
 		}
 	}
 	if err := q.Store.SetBuildState(ctx, StateReady); err != nil {
@@ -195,28 +203,24 @@ func (q *Queue) Run(ctx context.Context) (Outcome, error) {
 
 // runJob runs one job with up to MaxRetries retries. The returned error is
 // for persistence or cancellation only.
-func (q *Queue) runJob(ctx context.Context, j Job, prev JobRecord, sleep func(context.Context, time.Duration) error, log *slog.Logger) (JobRecord, error) {
+func (q *Queue) runJob(ctx context.Context, j Job, sleep func(context.Context, time.Duration) error, log *slog.Logger) (JobRecord, error) {
 	rec := JobRecord{}
 	for attempt := 1; ; attempt++ {
-		rec = JobRecord{State: JobRunning, Attempts: attempt}
+		rec = JobRecord{State: JobRunning, Attempts: attempt, Mode: q.Opts.Mode, Limit: q.Opts.Limit}
 		if err := q.Store.SaveJob(ctx, j.Name, rec); err != nil {
 			return rec, err
 		}
-		runErr := j.Run(ctx)
+		runErr := j.Run(ctx, q.Opts)
 		if ctx.Err() != nil {
 			return rec, ctx.Err() // cancelled: leave the job "running" so it resumes
 		}
-		switch {
-		case runErr == nil:
+		if runErr == nil {
 			rec.State = JobSucceeded
-			return rec, q.Store.SaveJob(ctx, j.Name, rec)
-		case errors.Is(runErr, ErrValidationFailed):
-			rec.State, rec.Error = JobValidationFailed, truncate(runErr.Error())
 			return rec, q.Store.SaveJob(ctx, j.Name, rec)
 		}
 		rec.Error = truncate(runErr.Error())
 		d, ok := Delay(attempt)
-		if !ok {
+		if !ok || errors.Is(runErr, ErrNotImplemented) {
 			rec.State = JobFailed
 			return rec, q.Store.SaveJob(ctx, j.Name, rec)
 		}

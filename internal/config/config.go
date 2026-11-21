@@ -21,14 +21,10 @@ const (
 	ScopeCore Scope = 1 << iota
 	// ScopeServe covers the REST API.
 	ScopeServe
-	// ScopeBaselineFetch covers S3 or local baseline file access.
-	ScopeBaselineFetch
-	// ScopeBaselineLoad covers the baseline loader batch size.
-	ScopeBaselineLoad
 	// ScopeSync covers the pipeline, sources, schedule and retention.
 	ScopeSync
 	// ScopeWorker is everything the worker runs.
-	ScopeWorker = ScopeCore | ScopeBaselineFetch | ScopeBaselineLoad | ScopeSync
+	ScopeWorker = ScopeCore | ScopeSync
 )
 
 // Variable names.
@@ -43,21 +39,16 @@ const (
 	EnvAPIRateLimit        = "BSKG_API_RATE_LIMIT"
 	EnvQueryTimeout        = "BSKG_QUERY_TIMEOUT"
 	EnvCursorSecret        = "BSKG_CURSOR_SECRET"
+	EnvStatsTTL            = "BSKG_STATS_TTL"
+	EnvStatsTimeout        = "BSKG_STATS_TIMEOUT"
 	EnvEnableCoExploit     = "BSKG_ENABLE_COEXPLOITATION"
-	EnvBaselineBucket      = "BSKG_BASELINE_BUCKET"
-	EnvBaselinePrefix      = "BSKG_BASELINE_PREFIX"
-	EnvAWSRegion           = "AWS_REGION"
-	EnvBaselineDir         = "BSKG_BASELINE_DIR"
-	EnvBaselineManifest    = "BSKG_BASELINE_MANIFEST"
-	EnvBaselineCacheDir    = "BSKG_BASELINE_CACHE_DIR"
-	EnvBaselineBatchSize   = "BSKG_BASELINE_BATCH_SIZE"
 	EnvBatchSize           = "BSKG_BATCH_SIZE"
 	EnvNVDAPIKey           = "NVD_API_KEY"
 	EnvEnabledSources      = "BSKG_ENABLED_SOURCES"
 	EnvNVDSyncTime         = "BSKG_NVD_SYNC_TIME"
 	EnvStaleAfterHours     = "BSKG_STALE_AFTER_HOURS"
 	EnvChangeRetentionDays = "BSKG_CHANGE_RETENTION_DAYS"
-	EnvContinueOnValFail   = "BSKG_CONTINUE_ON_VALIDATION_FAILURE"
+	EnvSampleLimit         = "BSKG_SAMPLE_LIMIT"
 	EnvGitHubToken         = "GITHUB_TOKEN"
 	EnvEPSSThreshold       = "BSKG_EPSS_CHANGE_THRESHOLD"
 )
@@ -70,31 +61,28 @@ type Config struct {
 	Neo4jPassword Secret
 	LogLevel      string
 
-	APIAddr        string
-	TLSCertFile    string
-	TLSKeyFile     string
-	APIRateLimit   int
-	QueryTimeout   time.Duration
-	CursorSecret   Secret
+	APIAddr      string
+	TLSCertFile  string
+	TLSKeyFile   string
+	APIRateLimit int
+	QueryTimeout time.Duration
+	CursorSecret Secret
+	// StatsTTL is how long /v1/stats results are cached (1m to 60m).
+	StatsTTL time.Duration
+	// StatsTimeout bounds one statistics computation (1s to 120s).
+	StatsTimeout   time.Duration
 	CoExploitation bool
 
-	BaselineBucket    string
-	BaselinePrefix    string
-	AWSRegion         string
-	BaselineDir       string
-	BaselineManifest  string // path of the Baseline_Manifest JSON
-	BaselineCacheDir  string
-	BaselineBatchSize int
-
-	BatchSize                int
-	NVDAPIKey                Secret
-	EnabledSources           []string
-	NVDSyncTime              string // HH:MM UTC
-	StaleAfterHours          int
-	ChangeRetentionDays      int
-	ContinueOnValidationFail bool
-	GitHubToken              Secret
-	EPSSChangeThreshold      float64
+	BatchSize           int
+	NVDAPIKey           Secret
+	EnabledSources      []string
+	NVDSyncTime         string // HH:MM UTC
+	StaleAfterHours     int
+	ChangeRetentionDays int
+	// SampleLimit is the Sample_Build record limit; 0 means a full build.
+	SampleLimit         int
+	GitHubToken         Secret
+	EPSSChangeThreshold float64
 }
 
 // Secret holds a secret value and hides it from formatting.
@@ -183,39 +171,16 @@ func LoadFrom(env Env, scopes ...Scope) (*Config, error) {
 		c.APIRateLimit = p.intRange(EnvAPIRateLimit, 120, 1, 1_000_000)
 		c.QueryTimeout = p.duration(EnvQueryTimeout, 10*time.Second)
 		c.CursorSecret = p.secret(EnvCursorSecret, true)
+		c.StatsTTL = p.durationRange(EnvStatsTTL, 5*time.Minute, time.Minute, time.Hour)
+		c.StatsTimeout = p.durationRange(EnvStatsTimeout, 30*time.Second, time.Second, 120*time.Second)
 		c.CoExploitation = p.boolean(EnvEnableCoExploit, false)
-	}
-
-	if sc&ScopeBaselineFetch != 0 {
-		c.BaselineDir = p.str(EnvBaselineDir, "")
-		c.BaselineManifest = p.str(EnvBaselineManifest, "baseline/manifest.json")
-		c.BaselineCacheDir = p.str(EnvBaselineCacheDir, "/var/cache/bskg")
-		c.BaselineBucket = p.str(EnvBaselineBucket, "")
-		c.BaselinePrefix = p.str(EnvBaselinePrefix, "")
-		c.AWSRegion = p.str(EnvAWSRegion, "")
-		// The local directory replaces S3, so bucket settings are required only without it.
-		if c.BaselineDir == "" {
-			if c.BaselineBucket == "" {
-				p.add(EnvBaselineBucket, "required when "+EnvBaselineDir+" is not set")
-			}
-			if c.BaselinePrefix == "" {
-				p.add(EnvBaselinePrefix, "required when "+EnvBaselineDir+" is not set")
-			}
-			if c.AWSRegion == "" {
-				p.add(EnvAWSRegion, "required when "+EnvBaselineDir+" is not set")
-			}
-		}
-	}
-
-	if sc&ScopeBaselineLoad != 0 {
-		c.BaselineBatchSize = p.intRange(EnvBaselineBatchSize, 5000, 1, 10000)
 	}
 
 	if sc&ScopeSync != 0 {
 		c.BatchSize = p.intRange(EnvBatchSize, 500, 1, 10000)
 		c.NVDAPIKey = p.secret(EnvNVDAPIKey, false)
 		c.GitHubToken = p.secret(EnvGitHubToken, false)
-		c.EnabledSources = p.list(EnvEnabledSources, "nvd")
+		c.EnabledSources = p.list(EnvEnabledSources, "cwe,nvd,exploitdb")
 		for _, s := range c.EnabledSources {
 			if !validSourceName(s) {
 				p.add(EnvEnabledSources, "contains an invalid source name")
@@ -228,7 +193,7 @@ func LoadFrom(env Env, scopes ...Scope) (*Config, error) {
 		}
 		c.StaleAfterHours = p.intRange(EnvStaleAfterHours, 48, 1, 720)
 		c.ChangeRetentionDays = p.intRange(EnvChangeRetentionDays, 365, 1, 3650)
-		c.ContinueOnValidationFail = p.boolean(EnvContinueOnValFail, false)
+		c.SampleLimit = p.sampleLimit()
 		c.EPSSChangeThreshold = p.floatRange(EnvEPSSThreshold, 0.01, 0, 1)
 	}
 
@@ -344,6 +309,18 @@ func (p *parser) duration(name string, def time.Duration) time.Duration {
 	return d
 }
 
+func (p *parser) durationRange(name string, def, lo, hi time.Duration) time.Duration {
+	s := p.raw(name)
+	if s == "" {
+		return def
+	}
+	d, err := time.ParseDuration(s)
+	if err != nil || d < lo || d > hi {
+		p.add(name, fmt.Sprintf("must be a duration from %s to %s", lo, hi))
+		return def
+	}
+	return d
+}
 func (p *parser) list(name, def string) []string {
 	var out []string
 	for _, part := range strings.Split(p.str(name, def), ",") {
@@ -378,4 +355,26 @@ func (p *parser) secret(name string, required bool) Secret {
 		return Secret{}
 	}
 	return Secret{v: val}
+}
+
+// sampleLimit parses BSKG_SAMPLE_LIMIT: unset or empty means 0 (full build);
+// otherwise an unsigned base-10 integer from 1 to 1,000,000.
+func (p *parser) sampleLimit() int {
+	v := p.raw(EnvSampleLimit)
+	if v == "" {
+		return 0
+	}
+	n := 0
+	for _, ch := range v {
+		if ch < '0' || ch > '9' || n > 1000000 {
+			p.add(EnvSampleLimit, "must be an integer from 1 to 1000000")
+			return 0
+		}
+		n = n*10 + int(ch-'0')
+	}
+	if n < 1 || n > 1000000 {
+		p.add(EnvSampleLimit, "must be an integer from 1 to 1000000")
+		return 0
+	}
+	return n
 }

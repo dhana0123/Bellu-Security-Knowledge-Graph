@@ -13,11 +13,6 @@ output "instance_id" {
   value       = aws_instance.host.id
 }
 
-output "baseline_bucket" {
-  description = "S3 bucket for the VulKG baseline (use prefix vulkg/<commit>/)."
-  value       = aws_s3_bucket.baseline.bucket
-}
-
 output "data_volume_id" {
   description = "EBS data volume id (tagged bskg-backup=true)."
   value       = aws_ebs_volume.data.id

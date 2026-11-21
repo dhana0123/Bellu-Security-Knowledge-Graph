@@ -1,7 +1,9 @@
 // Response shapes. Adjust here (and in client.ts normalizers) if the API changes.
 
-export type BuildState = string; // e.g. "ready", "building", "migrating"
-export type BuildMode = string; // "sample" | "full"
+// migrating | loading_cwe | nvd_catch_up | loading_exploits | ready (kept open: unknown values are shown as is)
+export type BuildState = string;
+// "sample" | "full", or null when unset (docs/api-shapes.md)
+export type BuildMode = string | null;
 
 export interface GraphEnvelope {
   version?: string;
@@ -28,6 +30,7 @@ export interface VulnerabilityRow {
   publishedDate?: string | null;
   description?: string | null;
   v3baseScore?: number | null;
+  v3baseSeverity?: string | null;
   exploitability?: string | null;
   kev?: boolean | null;
   sources?: string[];

@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { buildQuery, createClient, normalizeStats } from './client';
+import { buildQuery, createClient, normalizeStats, parseEnvelope } from './client';
 import { ApiError } from './errors';
 import { clearKey, loadKey, saveKey } from './session';
 
-const graph = { version: '1', buildState: 'building', buildMode: 'sample', stale: false, sources: {} };
+const graph = { version: '1', buildState: 'nvd_catch_up', buildMode: 'sample', stale: false, sources: {} };
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
@@ -20,7 +20,7 @@ describe('client', () => {
     expect(url).not.toContain('secret');
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer bskg_secret');
     expect(page.nextCursor).toBe('n');
-    expect(onGraph).toHaveBeenCalledWith(expect.objectContaining({ buildState: 'building', buildMode: 'sample' }));
+    expect(onGraph).toHaveBeenCalledWith(expect.objectContaining({ buildState: 'nvd_catch_up', buildMode: 'sample' }));
   });
 
   it('clears via callback on 401 and maps the failure', async () => {
@@ -73,12 +73,35 @@ describe('helpers', () => {
     expect(buildQuery({ a: '', b: undefined, c: 1, d: false })).toBe('?c=1');
     expect(buildQuery({})).toBe('');
   });
-  it('normalizeStats reads maps and lists', () => {
-    const s = normalizeStats({ statsStale: true, counts: { labels: { Vulnerability: 3 } }, byYear: [{ year: 2024, count: 2 }, { year: 2023, count: 1 }], exploited: { exploited: 1, total: 4, ratio: 0.25 } });
+  it('normalizeStats follows docs/api-shapes.md', () => {
+    const s = normalizeStats({
+      statsStale: true,
+      labels: [{ label: 'Vulnerability', count: 3 }],
+      relationships: [{ type: 'AFFECTS', count: 2 }],
+      cvesByYear: [{ year: 2023, count: 1 }, { year: 2024, count: 2 }],
+      cvssDistribution: [{ severity: 'UNSCORED', count: 1 }, { severity: 'HIGH', count: 4 }],
+      topWeaknesses: [{ key: 'CWE-79', count: 3 }],
+      exploitedShare: { exploited: 1, total: 4, ratio: 0.25 },
+      sync: [
+        { source: 'cwe', neverRun: false, lastRun: { status: 'succeeded' }, lastSuccess: '2025-01-09T03:00:00Z', deadLetters: 1 },
+        { source: 'nvd', neverRun: true, lastRun: null, lastSuccess: null, deadLetters: 0 },
+      ],
+    });
     expect(s.statsStale).toBe(true);
     expect(s.labelCounts).toEqual([{ name: 'Vulnerability', count: 3 }]);
+    expect(s.relationshipCounts).toEqual([{ name: 'AFFECTS', count: 2 }]);
     expect(s.byYear.map((y) => y.name)).toEqual(['2023', '2024']);
+    expect(s.bySeverity.map((y) => y.name)).toEqual(['UNSCORED', 'HIGH']);
+    expect(s.topWeaknesses).toEqual([{ key: 'CWE-79', count: 3 }]);
     expect(s.exploited.ratio).toBe(0.25);
+    expect(s.sync).toEqual([
+      { source: 'cwe', status: 'succeeded', lastSuccess: '2025-01-09T03:00:00Z', deadLetters: 1 },
+      { source: 'nvd', status: 'never run', lastSuccess: null, deadLetters: 0 },
+    ]);
+  });
+  it('parseEnvelope keeps a null buildMode and per-source lastSuccess', () => {
+    const e = parseEnvelope({ graph: { version: 'dev', buildState: 'ready', buildMode: null, stale: false, sources: { nvd: { lastSuccess: null }, cwe: { lastSuccess: 'x' } } } });
+    expect(e).toEqual({ version: 'dev', buildState: 'ready', buildMode: null, stale: false, sources: { nvd: { lastSuccess: null }, cwe: { lastSuccess: 'x' } } });
   });
 });
 

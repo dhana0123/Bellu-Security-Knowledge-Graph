@@ -3,8 +3,6 @@ package validate
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
@@ -12,11 +10,12 @@ import (
 	"github.com/bellu/bskg/internal/graph"
 )
 
-// RunQueries executes the nine representative queries in READ transactions
-// with a 30 s timeout each and compares them with the recorded results. The
-// client must have been created with a timeout of at least QueryTimeout.
-// Every query runs even when an earlier one fails (Requirement 6.1).
-func RunQueries(ctx context.Context, c *graph.Client, p Profile) ([]QueryResult, error) {
+// RunQueries executes the representative queries in READ transactions with a
+// 30 s timeout each. params holds the parameters of each query by name; a
+// query without an entry is not run. The client must have been created with a
+// timeout of at least QueryTimeout. Every query runs even when an earlier one
+// fails (Requirement 19).
+func RunQueries(ctx context.Context, c *graph.Client, params map[string]map[string]any) ([]QueryResult, error) {
 	if c.Timeout() < QueryTimeout {
 		return nil, fmt.Errorf("validate: graph client timeout %s is below the %s query timeout", c.Timeout(), QueryTimeout)
 	}
@@ -26,22 +25,22 @@ func RunQueries(ctx context.Context, c *graph.Client, p Profile) ([]QueryResult,
 	}
 	out := make([]QueryResult, 0, len(qs))
 	for _, q := range qs {
-		tbl, qerr := RunQuery(ctx, c, p, q)
-		r, err := EvaluateQuery(p, q.Name, tbl, qerr)
-		if err != nil {
-			return nil, err
+		p, ok := params[q.Name]
+		if !ok {
+			continue
 		}
-		out = append(out, r)
+		tbl, qerr := RunQuery(ctx, c, q, p)
+		res := QueryResult{Name: q.Name, Passed: qerr == nil, Rows: len(tbl.Rows)}
+		if qerr != nil {
+			res.Message = "query failed: " + qerr.Error()
+		}
+		out = append(out, res)
 	}
 	return out, nil
 }
 
-// RunQuery executes one query and returns its table.
-func RunQuery(ctx context.Context, c *graph.Client, p Profile, q Query) (Table, error) {
-	params, err := QueryParams(p, q.Name)
-	if err != nil {
-		return Table{}, err
-	}
+// RunQuery executes one query with params and returns its table.
+func RunQuery(ctx context.Context, c *graph.Client, q Query, params map[string]any) (Table, error) {
 	ctx, cancel := context.WithTimeout(ctx, QueryTimeout)
 	defer cancel()
 	res, err := c.Read(ctx, func(ctx context.Context, tx neo4j.ManagedTransaction) (any, error) {
@@ -88,35 +87,4 @@ func jsonValue(v any) any {
 	default:
 		return v
 	}
-}
-
-// UpdateExpected runs every query and writes the observed results as the
-// expected files of the profile under dir (the internal/validate directory).
-// The CLI flag --update-expected (task 6.4) calls it.
-func UpdateExpected(ctx context.Context, c *graph.Client, p Profile, dir string) error {
-	if c.Timeout() < QueryTimeout {
-		return fmt.Errorf("validate: graph client timeout %s is below the %s query timeout", c.Timeout(), QueryTimeout)
-	}
-	qs, err := Queries()
-	if err != nil {
-		return err
-	}
-	for _, q := range qs {
-		t, err := RunQuery(ctx, c, p, q)
-		if err != nil {
-			return fmt.Errorf("query %s: %w", q.Name, err)
-		}
-		b, err := EncodeExpected(p, t)
-		if err != nil {
-			return err
-		}
-		path := filepath.Join(dir, ExpectedFileName(p, q.Name))
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-			return err
-		}
-		if err := os.WriteFile(path, append(b, '\n'), 0o644); err != nil {
-			return err
-		}
-	}
-	return nil
 }

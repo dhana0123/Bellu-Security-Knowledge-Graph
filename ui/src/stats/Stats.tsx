@@ -56,7 +56,7 @@ export function Stats() {
             </p>
           )}
           <p>
-            Build state: {graph?.buildState ?? 'unknown'}. Build mode: {graph?.buildMode ?? 'unknown'}.
+            Build state: {graph?.buildState ?? 'unknown'}. Build mode: {graph?.buildMode ?? 'not set'}.
             {s.generatedAt ? ` Generated at ${s.generatedAt}.` : ''}
           </p>
           <p>

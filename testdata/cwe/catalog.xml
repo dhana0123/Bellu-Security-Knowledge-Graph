@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Weakness_Catalog Name="CWE" Version="5.0" Date="2026-10-28" xmlns="http://cwe.mitre.org/cwe-8" xmlns:xhtml="http://www.w3.org/1999/xhtml">
+  <Weaknesses>
+    <Weakness ID="74" Name="Improper Neutralization of Special Elements in Output" Abstraction="Class" Structure="Simple" Status="Draft">
+      <Description>The product constructs a command using externally-influenced input.</Description>
+    </Weakness>
+    <Weakness ID="79" Name="Cross-site Scripting" Abstraction="Base" Structure="Simple" Status="Stable">
+      <Description>The product does not neutralize user input.</Description>
+      <Extended_Description>Cross-site scripting <xhtml:b>happens</xhtml:b> when input is echoed.<xhtml:br/>Second line.</Extended_Description>
+      <Related_Weaknesses>
+        <Related_Weakness Nature="ChildOf" CWE_ID="74" View_ID="1000" Ordinal="Primary"/>
+        <Related_Weakness Nature="ChildOf" CWE_ID="74" View_ID="1003"/>
+        <Related_Weakness Nature="ChildOf" CWE_ID="9999" View_ID="1000"/>
+        <Related_Weakness Nature="CanPrecede" CWE_ID="74" View_ID="1000"/>
+      </Related_Weaknesses>
+    </Weakness>
+    <Weakness ID="0089" Name="SQL Injection" Abstraction="Base" Structure="Simple" Status="Stable">
+      <Description>SQL injection description.</Description>
+      <Related_Weaknesses>
+        <Related_Weakness Nature="ChildOf" CWE_ID="74" View_ID="1000"/>
+      </Related_Weaknesses>
+    </Weakness>
+  </Weaknesses>
+  <Categories>
+    <Category ID="310" Name="Cryptographic Issues" Status="Draft">
+      <Summary>Weaknesses in cryptography.</Summary>
+      <Relationships>
+        <Has_Member CWE_ID="79" View_ID="888"/>
+      </Relationships>
+    </Category>
+  </Categories>
+</Weakness_Catalog>

@@ -8,7 +8,6 @@ import (
 	"io/fs"
 	"reflect"
 	"sort"
-	"strings"
 	"time"
 )
 
@@ -38,33 +37,6 @@ var queryNames = []string{
 	"cvss_v3_version",
 }
 
-// profileParams holds the parameters of each query per profile. The baseline
-// parameters name well-known real records (Log4Shell, CWE-79, OpenSSL).
-var profileParams = map[Profile]map[string]map[string]any{
-	ProfileFixture: {
-		"lookup_cve":               {"cveID": "CVE-2019-1005"},
-		"weakness_vulnerabilities": {"cweID": "CWE-89"},
-		"product_vulnerabilities":  {"productName": "openssl"},
-		"vendor_products":          {"vendorName": "apache"},
-		"vulnerability_exploits":   {"cveID": "CVE-2019-1002"},
-		"vulnerability_domains":    {"cveID": "CVE-2019-1004"},
-		"fulltext_description":     {"query": "12"},
-		"published_range":          {"from": "2019-03-01", "to": "2019-04-30"},
-		"cvss_v3_version":          {"v3version": 3.0},
-	},
-	ProfileBaseline: {
-		"lookup_cve":               {"cveID": "CVE-2021-44228"},
-		"weakness_vulnerabilities": {"cweID": "CWE-79"},
-		"product_vulnerabilities":  {"productName": "openssl"},
-		"vendor_products":          {"vendorName": "apache"},
-		"vulnerability_exploits":   {"cveID": "CVE-2021-44228"},
-		"vulnerability_domains":    {"cveID": "CVE-2021-44228"},
-		"fulltext_description":     {"query": "log4j"},
-		"published_range":          {"from": "2021-12-01", "to": "2021-12-31"},
-		"cvss_v3_version":          {"v3version": 3.1},
-	},
-}
-
 // Queries returns the nine embedded queries in report order.
 func Queries() ([]Query, error) {
 	out := make([]Query, 0, len(queryNames))
@@ -78,51 +50,10 @@ func Queries() ([]Query, error) {
 	return out, nil
 }
 
-// QueryParams returns the parameters for a query under a profile.
-func QueryParams(p Profile, name string) (map[string]any, error) {
-	m, ok := profileParams[p]
-	if !ok {
-		return nil, fmt.Errorf("unknown validation profile %q", p)
-	}
-	params, ok := m[name]
-	if !ok {
-		return nil, fmt.Errorf("no parameters for query %q", name)
-	}
-	return params, nil
-}
-
 // Table is an ordered query result: column names and rows of JSON values.
 type Table struct {
 	Columns []string `json:"columns"`
 	Rows    [][]any  `json:"rows"`
-}
-
-// ExpectedTable is the content of a *.expected.json file.
-type ExpectedTable struct {
-	Profile string `json:"profile"`
-	Derived bool   `json:"derived,omitempty"`
-	Note    string `json:"note,omitempty"`
-	Table
-}
-
-// LoadQueryExpected reads the expected table for a query. found is false when
-// no file has been recorded for the profile.
-func LoadQueryExpected(p Profile, name string) (e ExpectedTable, found bool, err error) {
-	b, err := queriesFS.ReadFile("queries/" + string(p) + "/" + name + ".expected.json")
-	if err != nil {
-		if isNotExist(err) {
-			return e, false, nil
-		}
-		return e, false, err
-	}
-	if err := json.Unmarshal(b, &e); err != nil {
-		return e, false, fmt.Errorf("parse expected file for %s/%s: %w", p, name, err)
-	}
-	return e, true, nil
-}
-
-func isNotExist(err error) bool {
-	return err != nil && (reflect.TypeOf(err) == reflect.TypeOf(&fs.PathError{}) || strings.Contains(err.Error(), "file does not exist"))
 }
 
 // Diff is the outcome of comparing two tables.
@@ -197,48 +128,14 @@ func js(v any) string {
 	return string(b)
 }
 
-// QueryResult is the outcome of one representative query.
+// QueryResult is the outcome of one representative query. A query passes
+// when it runs without error; selector-based result checks come with the
+// smoke check.
 type QueryResult struct {
-	Name     string `json:"name"`
-	Passed   bool   `json:"passed"`
-	Recorded bool   `json:"recorded"` // an expected file exists for the profile
-	Derived  bool   `json:"derived,omitempty"`
-	Message  string `json:"message,omitempty"`
-	Diff     *Diff  `json:"diff,omitempty"`
-}
-
-// missingMessage is reported when no expected file is recorded. The
-// design is silent on this case, so it counts as a failure with a clear
-// instruction (the baseline files are recorded once on AWS).
-func missingMessage(p Profile, name string) string {
-	return fmt.Sprintf("no expected result recorded for profile %q, query %q; run the validator with --update-expected after reviewing a passing count check", p, name)
-}
-
-// EvaluateQuery compares an actual table with the recorded expected result.
-// A query error is reported as a failed result by the caller via actualErr.
-func EvaluateQuery(p Profile, name string, act Table, actualErr error) (QueryResult, error) {
-	r := QueryResult{Name: name}
-	exp, found, err := LoadQueryExpected(p, name)
-	if err != nil {
-		return r, err
-	}
-	r.Recorded = found
-	r.Derived = exp.Derived
-	switch {
-	case actualErr != nil:
-		r.Message = "query failed: " + actualErr.Error()
-	case !found:
-		r.Message = missingMessage(p, name)
-	default:
-		d := CompareTables(exp.Table, act)
-		if d.Match {
-			r.Passed = true
-		} else {
-			r.Message = d.Message
-			r.Diff = &d
-		}
-	}
-	return r, nil
+	Name    string `json:"name"`
+	Passed  bool   `json:"passed"`
+	Rows    int    `json:"rows"`
+	Message string `json:"message,omitempty"`
 }
 
 // QueriesPassed reports whether every query result passed.
@@ -249,21 +146,6 @@ func QueriesPassed(rs []QueryResult) bool {
 		}
 	}
 	return true
-}
-
-// ExpectedFileName returns the repository path (relative to internal/validate)
-// of an expected file, for --update-expected writers.
-func ExpectedFileName(p Profile, name string) string {
-	return "queries/" + string(p) + "/" + name + ".expected.json"
-}
-
-// EncodeExpected renders an expected file for a freshly observed table.
-func EncodeExpected(p Profile, t Table) ([]byte, error) {
-	n, err := Normalize(t)
-	if err != nil {
-		return nil, err
-	}
-	return json.MarshalIndent(ExpectedTable{Profile: string(p), Table: n}, "", " ")
 }
 
 // embeddedQueryFiles returns the sorted embedded query file names (for tests).

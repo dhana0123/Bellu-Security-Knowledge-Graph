@@ -20,25 +20,8 @@ func TestNineQueriesAreConstantReadOnlyAndOrdered(t *testing.T) {
 		if !strings.Contains(body, "ORDER BY") || !strings.Contains(body, "LIMIT") {
 			t.Errorf("%s needs ORDER BY and LIMIT", q.Name)
 		}
-		for _, p := range []Profile{ProfileFixture, ProfileBaseline} {
-			if _, err := QueryParams(p, q.Name); err != nil {
-				t.Error(err)
-			}
-		}
 		if strings.Contains(body, "CALL") && !strings.Contains(body, "db.index.fulltext.queryNodes") {
 			t.Errorf("%s calls a disallowed procedure", q.Name)
-		}
-	}
-}
-
-func TestFixtureExpectedFilesRecordedAndBaselineNot(t *testing.T) {
-	for _, n := range queryNames {
-		e, found, err := LoadQueryExpected(ProfileFixture, n)
-		if err != nil || !found || !e.Derived || len(e.Columns) == 0 {
-			t.Errorf("fixture %s: found=%v derived=%v err=%v", n, found, e.Derived, err)
-		}
-		if _, found, err := LoadQueryExpected(ProfileBaseline, n); err != nil || found {
-			t.Errorf("baseline %s: found=%v err=%v", n, found, err)
 		}
 	}
 }
@@ -66,39 +49,8 @@ func TestCompareTables(t *testing.T) {
 	}
 }
 
-func TestEvaluateQuery(t *testing.T) {
-	e, _, _ := LoadQueryExpected(ProfileFixture, "vendor_products")
-	r, err := EvaluateQuery(ProfileFixture, "vendor_products", e.Table, nil)
-	if err != nil || !r.Passed || !r.Derived {
-		t.Fatalf("%+v %v", r, err)
-	}
-	r, _ = EvaluateQuery(ProfileFixture, "vendor_products", Table{Columns: e.Columns, Rows: [][]any{{"x", "y"}}}, nil)
-	if r.Passed || r.Diff == nil || r.Diff.RowIndex != 0 {
-		t.Fatalf("%+v", r)
-	}
-	r, _ = EvaluateQuery(ProfileBaseline, "vendor_products", e.Table, nil)
-	if r.Passed || r.Recorded || !strings.Contains(r.Message, "--update-expected") {
-		t.Fatalf("missing expected must fail clearly: %+v", r)
-	}
-	r, _ = EvaluateQuery(ProfileFixture, "vendor_products", Table{}, errTest)
-	if r.Passed || !strings.Contains(r.Message, "query failed") {
-		t.Fatalf("%+v", r)
-	}
-}
-
-type testErr string
-
-func (e testErr) Error() string { return string(e) }
-
-const errTest = testErr("boom")
-
-func TestEncodeExpectedRoundTrip(t *testing.T) {
-	in := Table{Columns: []string{"a"}, Rows: [][]any{{int64(3)}, {nil}}}
-	b, err := EncodeExpected(ProfileBaseline, in)
-	if err != nil || !strings.Contains(string(b), `"profile": "baseline"`) {
-		t.Fatalf("%s %v", b, err)
-	}
-	if files, err := embeddedQueryFiles(); err != nil || len(files) != 9 {
-		t.Fatalf("%v %v", files, err)
+func TestQueriesPassed(t *testing.T) {
+	if !QueriesPassed(nil) || !QueriesPassed([]QueryResult{{Passed: true}}) || QueriesPassed([]QueryResult{{Passed: true}, {}}) {
+		t.Fatal("QueriesPassed")
 	}
 }

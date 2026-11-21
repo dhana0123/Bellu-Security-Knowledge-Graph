@@ -33,14 +33,15 @@ describe('paging', () => {
 });
 
 describe('bannerMessage', () => {
-  const g = (buildState: string, buildMode: string) => ({ buildState, buildMode });
+  const g = (buildState: string, buildMode: string | null) => ({ buildState, buildMode });
   it('is hidden only when ready and full', () => {
     expect(bannerMessage(null)).toBeNull();
     expect(bannerMessage(g('ready', 'full'))).toBeNull();
+    expect(bannerMessage(g('ready', null))).toBeNull();
   });
   it('names both values otherwise', () => {
-    const m = bannerMessage(g('building', 'full'));
-    expect(m).toContain('building');
+    const m = bannerMessage(g('nvd_catch_up', 'full'));
+    expect(m).toContain('nvd_catch_up');
     expect(m).toContain('full');
     expect(bannerMessage(g('ready', 'sample'))).toContain('sample');
   });

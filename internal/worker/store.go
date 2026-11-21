@@ -10,9 +10,15 @@ import (
 
 const (
 	cypherLoadJob = `MATCH (j:Job {name: $name})
-RETURN j.queueState AS state, j.queueAttempts AS attempts, j.queueError AS err`
+RETURN j.queueState AS state, j.queueAttempts AS attempts, j.queueError AS err,
+  j.queueMode AS mode, j.queueLimit AS limit`
+	// queueStartedAt is set when attempt 1 starts; queueEndedAt when the job is
+	// no longer running.
 	cypherSaveJob = `MERGE (j:Job {name: $name})
-SET j.queueState = $state, j.queueAttempts = $attempts, j.queueError = $err, j.queueUpdatedAt = datetime()`
+SET j.queueState = $state, j.queueAttempts = $attempts, j.queueError = $err,
+  j.queueMode = $mode, j.queueLimit = $limit, j.queueUpdatedAt = datetime(),
+  j.queueStartedAt = CASE WHEN $attempts = 1 AND $state = 'running' THEN datetime() ELSE j.queueStartedAt END,
+  j.queueEndedAt = CASE WHEN $state = 'running' THEN null ELSE datetime() END`
 	cypherSetBuildState = `MERGE (b:BuildMeta {id: 'build'})
 SET b.buildState = $state`
 	cypherSetQueueComplete = `MERGE (b:BuildMeta {id: 'build'})
@@ -50,6 +56,10 @@ func (s GraphStore) LoadJob(ctx context.Context, name string) (JobRecord, error)
 				rec.Attempts = int(a)
 			}
 			rec.Error, _ = m["err"].(string)
+			rec.Mode, _ = m["mode"].(string)
+			if l, ok := m["limit"].(int64); ok {
+				rec.Limit = int(l)
+			}
 		}
 		return rec, r.Err()
 	})
@@ -63,6 +73,7 @@ func (s GraphStore) LoadJob(ctx context.Context, name string) (JobRecord, error)
 func (s GraphStore) SaveJob(ctx context.Context, name string, rec JobRecord) error {
 	return s.write(ctx, cypherSaveJob, map[string]any{
 		"name": name, "state": rec.State, "attempts": int64(rec.Attempts), "err": rec.Error,
+		"mode": rec.Mode, "limit": int64(rec.Limit),
 	})
 }
 

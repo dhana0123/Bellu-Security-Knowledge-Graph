@@ -26,7 +26,8 @@ func TestDelaySchedules(t *testing.T) {
 		p    Policy
 		want []time.Duration
 	}{
-		{"download", DownloadPolicy, []time.Duration{1 * s, 2 * s, 4 * s}},
+		{"cwe", CWEPolicy, []time.Duration{2 * s, 4 * s}},
+		{"exploitdb", ExploitDBPolicy, []time.Duration{5 * s, 10 * s, 20 * s}},
 		{"nvd", NVDPolicy, []time.Duration{2 * s, 4 * s, 8 * s, 16 * s, 32 * s, 60 * s, 60 * s}},
 		{"osv", OSVPolicy, []time.Duration{1 * s, 2 * s, 4 * s}},
 	}
@@ -57,7 +58,7 @@ func TestRetryAfterOverrideCapped(t *testing.T) {
 func TestDoRetriesThenSucceeds(t *testing.T) {
 	clk := &fakeClock{}
 	calls := 0
-	err := Do(context.Background(), DownloadPolicy, clk, func(int) error {
+	err := Do(context.Background(), ExploitDBPolicy, clk, func(int) error {
 		calls++
 		if calls < 3 {
 			return Retryable(errors.New("boom"))
@@ -67,7 +68,7 @@ func TestDoRetriesThenSucceeds(t *testing.T) {
 	if err != nil || calls != 3 {
 		t.Fatalf("err=%v calls=%d", err, calls)
 	}
-	if len(clk.sleeps) != 2 || clk.sleeps[0] != time.Second || clk.sleeps[1] != 2*time.Second {
+	if len(clk.sleeps) != 2 || clk.sleeps[0] != 5*time.Second || clk.sleeps[1] != 10*time.Second {
 		t.Fatalf("sleeps %v", clk.sleeps)
 	}
 }
@@ -76,7 +77,7 @@ func TestDoExhaustsRetries(t *testing.T) {
 	clk := &fakeClock{}
 	calls := 0
 	base := errors.New("down")
-	err := Do(context.Background(), DownloadPolicy, clk, func(int) error {
+	err := Do(context.Background(), ExploitDBPolicy, clk, func(int) error {
 		calls++
 		return Retryable(base)
 	})
@@ -86,7 +87,7 @@ func TestDoExhaustsRetries(t *testing.T) {
 	if calls != 4 {
 		t.Fatalf("calls=%d want 4", calls)
 	}
-	want := []time.Duration{time.Second, 2 * time.Second, 4 * time.Second}
+	want := []time.Duration{5 * time.Second, 10 * time.Second, 20 * time.Second}
 	for i, w := range want {
 		if clk.sleeps[i] != w {
 			t.Fatalf("sleeps %v", clk.sleeps)
@@ -125,7 +126,7 @@ func TestDoContextCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	calls := 0
-	err := Do(ctx, DownloadPolicy, &fakeClock{}, func(int) error { calls++; return nil })
+	err := Do(ctx, ExploitDBPolicy, &fakeClock{}, func(int) error { calls++; return nil })
 	if !errors.Is(err, context.Canceled) || calls != 0 {
 		t.Fatalf("err=%v calls=%d", err, calls)
 	}
