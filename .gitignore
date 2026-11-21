@@ -10,7 +10,8 @@
 /dist/
 *.test
 *.out
-coverage.*
+/coverage.*
+/ui/coverage/
 
 # local cache and data
 /cache/
@@ -28,3 +29,4 @@ infra/.terraform/
 /ui/dist/*
 !/ui/dist/index.html
 !/ui/dist/.gitkeep
+infra/terraform.tfvars
