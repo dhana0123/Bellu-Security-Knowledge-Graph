@@ -26,12 +26,12 @@ sample and full builds.
 
 | Measurement | Sample build | Full build |
 | --- | --- | --- |
-| Date | | |
-| Peak Neo4j heap | | |
-| Peak container memory (neo4j / worker / api) | | |
-| Store size on disk | | |
-| Stats query time | | |
-| Out-of-memory kills | | |
+| Date | 2026-11-21 | 2026-11-21 |
+| Peak Neo4j heap | not measured (2 GiB fixed) | not measured (2 GiB fixed) |
+| Peak container memory (neo4j / worker / api) | 2.5 GiB / 90 MiB / 30 MiB | 4.6 GiB / 90 MiB / 34 MiB (Neo4j limit 5.5 GiB) |
+| Store size on disk | under 1 GB | 8.9 GB on /data |
+| Stats query time | under 1 s | 12.0 s cold, cached 5 min |
+| Out-of-memory kills | none | none |
 
 ## Create the infrastructure
 

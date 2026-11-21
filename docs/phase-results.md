@@ -10,3 +10,17 @@ test.
 | Milestone 2 | | | | | |
 | Phase 2 | | | | | |
 | Phase 3 | | | | | |
+
+## 2026-11-21: Sample and full build on AWS (t4g.large, ap-south-1, Neo4j 2026.10.2)
+
+| Run | Result | Notes |
+|---|---|---|
+| Sample, first 1000 CVEs | validation passed | 3,129 nodes, 5,302 relationships |
+| Sample, latest 1000 CVEs (`BSKG_SAMPLE_ORDER=latest`) | validation passed | 2,398 nodes, 4,622 relationships; 217 fix commits, 128 repositories; no CPE or exploit data for 2026 CVEs yet |
+| Full build (continued from the sample) | validation passed | 12 minutes: NVD 430,350 CVEs (0 failed), Exploit-DB 47,182 rows (474 rejected, source data defects), CWE kept |
+
+Full graph: 697,401 domain nodes and 2,653,462 relationships. Vulnerability 430,350, Product 115,035, Vendor 36,607, Weakness 984, Exploit 27,220, Author 7,045, Domain 19,728, Repository 24,983, FixCommit 35,449. 24,944 CVEs (6.1 %) have a public exploit.
+
+API on the full graph: stats 12.0 s cold (then cached 5 min), overview 4.7 s (5,000 of 697,401 nodes, truncated), search 0.17 s, CVE detail 0.32 s, validation 4.4 s.
+
+Validation covers constraints, indexes, duplicates, endpoint labels, and REJECT descriptions; the smoke, exploit-data, exploitability, and unset-property checks (task 14.3) are not implemented yet. Unit tests pass; integration tests (Docker) were not run on the developer machine.
