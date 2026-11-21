@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import type { SearchFilters } from '../api/types';
+import { btn, btnPrimary, card, errorBox, h1, input, label, muted } from '../common/classes';
 import { ErrorMessage, Loading } from '../common/ErrorMessage';
 import { useRequest } from '../common/useRequest';
 import { Results } from './Results';
@@ -41,12 +42,15 @@ export function Search() {
     setPager(initialPager);
   }
 
-  function field(k: 'q' | 'publishedFrom' | 'publishedTo' | 'cvssV3Min' | 'cvssV3Max' | 'cwe', label: string, hint?: string) {
+  function field(k: 'q' | 'publishedFrom' | 'publishedTo' | 'cvssV3Min' | 'cvssV3Max' | 'cwe', text: string, hint?: string) {
     return (
       <div>
-        <label htmlFor={`f-${k}`}>{label}</label>
+        <label htmlFor={`f-${k}`} className={label}>
+          {text}
+        </label>
         <input
           id={`f-${k}`}
+          className={input}
           value={form[k]}
           placeholder={hint}
           aria-invalid={errors[k] ? true : undefined}
@@ -54,7 +58,7 @@ export function Search() {
           onChange={(e) => set(k, e.target.value)}
         />
         {errors[k] && (
-          <div id={`e-${k}`} role="alert" className="error">
+          <div id={`e-${k}`} role="alert" className={`${errorBox} mt-1`}>
             {errors[k]}
           </div>
         )}
@@ -65,9 +69,9 @@ export function Search() {
   const items = req.data?.items ?? [];
   return (
     <section>
-      <h1>Search vulnerabilities</h1>
-      <form onSubmit={submit} noValidate>
-        <div className="filters">
+      <h1 className={h1}>Search vulnerabilities</h1>
+      <form onSubmit={submit} noValidate className={`${card} mb-6 space-y-4`}>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {field('q', 'Text search')}
           {field('publishedFrom', 'Published from', 'YYYY-MM-DD')}
           {field('publishedTo', 'Published to', 'YYYY-MM-DD')}
@@ -75,43 +79,46 @@ export function Search() {
           {field('cvssV3Max', 'CVSS v3 maximum', '10.0')}
           {field('cwe', 'Weakness (CWE)', 'CWE-79')}
           <div>
-            <label htmlFor="f-expl">Exploitability</label>
-            <select id="f-expl" value={form.exploitability} onChange={(e) => set('exploitability', e.target.value)}>
+            <label htmlFor="f-expl" className={label}>
+              Exploitability
+            </label>
+            <select id="f-expl" className={input} value={form.exploitability} onChange={(e) => set('exploitability', e.target.value)}>
               <option value="">Any</option>
               <option value="exploited">Exploited</option>
               <option value="unexploited">Not exploited</option>
             </select>
           </div>
         </div>
-        <label>
+        <label className="flex items-center gap-2 text-sm text-slate-300">
           <input type="checkbox" checked={form.includeRejected} onChange={(e) => set('includeRejected', e.target.checked)} />{' '}
           Include rejected CVEs
         </label>
         {kevAvailable && (
-          <label>
+          <label className="flex items-center gap-2 text-sm text-slate-300">
             <input type="checkbox" checked={form.kev} onChange={(e) => set('kev', e.target.checked)} /> Known exploited (KEV) only
           </label>
         )}
-        <button type="submit" disabled={req.loading}>
+        <button type="submit" className={btnPrimary} disabled={req.loading}>
           Search
         </button>
       </form>
       <Loading active={req.loading} />
       <ErrorMessage error={req.error} />
-      {req.data && items.length === 0 && !req.loading && <p>No vulnerabilities match these filters.</p>}
+      {req.data && items.length === 0 && !req.loading && <p className={muted}>No vulnerabilities match these filters.</p>}
       {items.length > 0 && <Results items={items} page={pager.index + 1} />}
-      <div>
-        <button type="button" disabled={!canPrev(pager) || req.loading} onClick={() => setPager(goPrev(pager))}>
+      <div className="mt-4 flex items-center gap-2">
+        <button type="button" className={btn} disabled={!canPrev(pager) || req.loading} onClick={() => setPager(goPrev(pager))}>
           Previous
-        </button>{' '}
+        </button>
         <button
           type="button"
+          className={btn}
           disabled={!req.data?.nextCursor || req.loading}
           onClick={() => req.data && setPager(goNext({ ...pager, next: req.data.nextCursor }))}
         >
           Next
-        </button>{' '}
-        <span className="muted">Page {pager.index + 1}</span>
+        </button>
+        <span className={`${muted} text-sm`}>Page {pager.index + 1}</span>
       </div>
     </section>
   );

@@ -8,19 +8,19 @@ export function BarChart({ title, data }: { title: string; data: CountEntry[] })
   const barW = 400;
   const h = Math.max(1, data.length) * row;
   return (
-    <figure>
-      <figcaption>{title}</figcaption>
+    <figure className="mb-6">
+      <figcaption className="mb-2 text-sm font-semibold text-slate-200">{title}</figcaption>
       {data.length === 0 ? (
-        <p className="muted">No data</p>
+        <p className="text-slate-400">No data</p>
       ) : (
         <svg role="img" aria-label={title} width={labelW + barW + 70} height={h}>
           {data.map((d, i) => (
             <g key={d.name} transform={`translate(0 ${i * row})`}>
-              <text className="bar-label" x={labelW - 4} y={13} textAnchor="end">
+              <text className="fill-slate-300 text-[11px]" x={labelW - 4} y={13} textAnchor="end">
                 {d.name}
               </text>
-              <rect className="bar" x={labelW} y={2} height={row - 4} width={(d.count / max) * barW} />
-              <text className="bar-label" x={labelW + (d.count / max) * barW + 4} y={13}>
+              <rect className="fill-sky-500" x={labelW} y={2} height={row - 4} width={(d.count / max) * barW} />
+              <text className="fill-slate-300 text-[11px]" x={labelW + (d.count / max) * barW + 4} y={13}>
                 {d.count}
               </text>
             </g>

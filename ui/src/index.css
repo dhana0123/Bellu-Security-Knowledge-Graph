@@ -1,0 +1,11 @@
+@import 'tailwindcss';
+
+/* Compiled to a static CSS file at build time: no runtime style injection (the API CSP is style-src 'self'). */
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-slate-950 text-slate-200 antialiased;
+  }
+}
