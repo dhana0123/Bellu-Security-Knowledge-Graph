@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { buildQuery, createClient, normalizeStats, parseEnvelope } from './client';
+import { buildQuery, createClient, normalizeOverview, normalizeStats, parseEnvelope } from './client';
 import { ApiError } from './errors';
 import { clearKey, loadKey, saveKey } from './session';
 
@@ -65,6 +65,55 @@ describe('client', () => {
     expect(n.truncated).toBe(true);
     expect(n.nodes[0].key).toBe('CVE-1');
     expect(await c.sources()).toEqual([{ name: 'nvd', license: 'PD', attribution: 'NVD text' }]);
+  });
+});
+
+describe('graph overview', () => {
+  it('requests /v1/graph/overview with the limit and normalizes the body', async () => {
+    const f = vi.fn().mockResolvedValue(
+      json(200, {
+        nodes: [
+          { id: 'Vulnerability:CVE-1', type: 'Vulnerability', key: 'CVE-1', label: 'CVE-1', properties: { v3baseScore: 9.8 } },
+          { id: 'Product:p', type: 'Product', key: 'p' },
+        ],
+        edges: [{ id: 'Vulnerability:CVE-1|AFFECTS|Product:p', source: 'Vulnerability:CVE-1', target: 'Product:p', type: 'AFFECTS' }],
+        truncated: true,
+        total: { nodes: 1200000, relationships: 3400000 },
+        graph,
+      }),
+    );
+    const c = createClient({ getKey: () => 'k', fetchImpl: f as unknown as typeof fetch });
+    const o = await c.overview(2000);
+    expect((f.mock.calls[0] as [string])[0]).toBe('/v1/graph/overview?limit=2000');
+    expect(o.truncated).toBe(true);
+    expect(o.total).toEqual({ nodes: 1200000, relationships: 3400000 });
+    expect(o.nodes[0]).toMatchObject({ id: 'Vulnerability:CVE-1', type: 'Vulnerability', properties: { v3baseScore: 9.8 } });
+    expect(o.nodes[1]?.label).toBe('p'); // label falls back to the key
+    expect(o.edges).toEqual([
+      { id: 'Vulnerability:CVE-1|AFFECTS|Product:p', source: 'Vulnerability:CVE-1', target: 'Product:p', type: 'AFFECTS', viewID: undefined },
+    ]);
+  });
+
+  it('defaults the limit to 5000', async () => {
+    const f = vi.fn().mockResolvedValue(json(200, { nodes: [], edges: [], truncated: false, total: { nodes: 0, relationships: 0 }, graph }));
+    const c = createClient({ getKey: () => 'k', fetchImpl: f as unknown as typeof fetch });
+    await c.overview();
+    expect((f.mock.calls[0] as [string])[0]).toBe('/v1/graph/overview?limit=5000');
+  });
+
+  it('tolerates missing or malformed fields', () => {
+    const o = normalizeOverview({ nodes: [{ id: 'a', type: 'T', key: 'a', label: 'a' }, 7, null], edges: 'x', total: { nodes: 'many', relationships: -4 } });
+    expect(o.nodes).toHaveLength(1);
+    expect(o.edges).toEqual([]);
+    expect(o.truncated).toBe(false);
+    expect(o.total).toEqual({ nodes: 1, relationships: 0 }); // non-numeric -> returned count; negative -> 0
+    expect(normalizeOverview({}).total).toEqual({ nodes: 0, relationships: 0 });
+  });
+
+  it('maps a 504 to an ApiError', async () => {
+    const f = vi.fn().mockResolvedValue(json(504, { error: { code: 'timeout', message: 'slow' }, graph }));
+    const c = createClient({ getKey: () => 'k', fetchImpl: f as unknown as typeof fetch });
+    await expect(c.overview()).rejects.toMatchObject({ status: 504, message: 'graph overview failed: HTTP 504' });
   });
 });
 

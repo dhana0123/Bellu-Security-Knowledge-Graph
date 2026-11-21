@@ -190,67 +190,72 @@ func deriveScan(rows []Row) ([]yearCount, []severityCount, exploitedShare) {
 	return ys, ss, share
 }
 
-// statsCache caches the last statistics result and makes concurrent
+// flightCache caches the last result of one computation and makes concurrent
 // computations share one run (single flight).
-type statsCache struct {
+type flightCache[T any] struct {
 	ttl     time.Duration
 	timeout time.Duration
 	now     func() time.Time
-	compute func(ctx context.Context) (*StatsResult, error)
+	compute func(ctx context.Context) (T, error)
 
 	mu     sync.Mutex
-	val    *StatsResult
+	val    T
+	has    bool
 	at     time.Time
-	flight *statsFlight
+	flight *cacheFlight[T]
 }
 
-type statsFlight struct {
+// statsCache caches the /v1/stats computation.
+type statsCache = flightCache[*StatsResult]
+
+type cacheFlight[T any] struct {
 	done chan struct{}
-	res  *StatsResult
+	res  T
 	err  error
 }
 
-// get returns the statistics. stale is true when the computation failed and
+// get returns the cached value. stale is true when the computation failed and
 // the previous result is served instead. The computation is detached from the
 // caller's cancellation so that one impatient client does not fail the others.
-func (c *statsCache) get(ctx context.Context) (res *StatsResult, stale bool, err error) {
+func (c *flightCache[T]) get(ctx context.Context) (res T, stale bool, err error) {
 	c.mu.Lock()
-	if c.val != nil && c.now().Sub(c.at) < c.ttl {
+	if c.has && c.now().Sub(c.at) < c.ttl {
 		v := c.val
 		c.mu.Unlock()
 		return v, false, nil
 	}
 	f := c.flight
 	if f == nil {
-		f = &statsFlight{done: make(chan struct{})}
+		f = &cacheFlight[T]{done: make(chan struct{})}
 		c.flight = f
 		go c.run(ctx, f)
 	}
 	c.mu.Unlock()
+	var zero T
 	select {
 	case <-f.done:
 	case <-ctx.Done():
-		return nil, false, ctx.Err()
+		return zero, false, ctx.Err()
 	}
 	if f.err == nil {
 		return f.res, false, nil
 	}
 	c.mu.Lock()
-	prev := c.val
+	prev, has := c.val, c.has
 	c.mu.Unlock()
-	if prev != nil {
+	if has {
 		return prev, true, nil
 	}
-	return nil, false, f.err
+	return zero, false, f.err
 }
 
-func (c *statsCache) run(parent context.Context, f *statsFlight) {
+func (c *flightCache[T]) run(parent context.Context, f *cacheFlight[T]) {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(parent), c.timeout)
 	defer cancel()
 	res, err := c.compute(ctx)
 	c.mu.Lock()
 	if err == nil {
-		c.val, c.at = res, c.now()
+		c.val, c.has, c.at = res, true, c.now()
 	}
 	c.flight = nil
 	c.mu.Unlock()

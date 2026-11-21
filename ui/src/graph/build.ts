@@ -2,6 +2,7 @@ import Graph from 'graphology';
 import forceAtlas2 from 'graphology-layout-forceatlas2';
 import type { GraphEdge } from '../api/types';
 import type { GraphData } from './merge';
+import { applyDegreeSizes } from './layout';
 import { EDGE_COLOR, captionFor, colorFor } from './style';
 
 export const NODE_SIZE = 18;
@@ -71,12 +72,21 @@ export function newGraph(): BskgGraph {
   return new Graph<NodeAttrs, EdgeAttrs>({ type: 'directed', multi: false });
 }
 
+export interface SyncOptions {
+  /** Size nodes by degree (the whole-graph overview) instead of the fixed NODE_SIZE. */
+  sizeByDegree?: boolean;
+  /** Edge thickness; thin edges keep a dense graph readable. */
+  edgeSize?: number;
+  /** Start positions for new nodes, for example from seedGrouped. Nodes not in the map are seeded next to a neighbour. */
+  positions?: ReadonlyMap<string, { x: number; y: number }>;
+}
+
 /**
  * Brings the graphology graph in line with the API data in place. Existing nodes keep their
  * positions, new nodes are seeded next to a neighbour, and nodes or edges that are no longer
  * in the data are removed. Returns the ids of the nodes that were added.
  */
-export function syncGraph(graph: BskgGraph, data: GraphData): string[] {
+export function syncGraph(graph: BskgGraph, data: GraphData, opts: SyncOptions = {}): string[] {
   const want = new Set(data.nodes.map((n) => n.id));
   const wantEdges = collapseEdges(data.edges.filter((e) => want.has(e.source) && want.has(e.target)));
   const wantKeys = new Set(wantEdges.map((e) => e.key));
@@ -94,7 +104,7 @@ export function syncGraph(graph: BskgGraph, data: GraphData): string[] {
     const other = neighbourOf.get(n.id);
     const anchor = other && graph.hasNode(other) ? graph.getNodeAttributes(other) : undefined;
     graph.addNode(n.id, {
-      ...seedPosition(n.id, anchor),
+      ...(opts.positions?.get(n.id) ?? seedPosition(n.id, anchor)),
       size: NODE_SIZE,
       color: colorFor(n.type),
       label: captionFor(n),
@@ -105,8 +115,9 @@ export function syncGraph(graph: BskgGraph, data: GraphData): string[] {
   }
   for (const e of wantEdges) {
     if (graph.hasEdge(e.key)) continue;
-    graph.addDirectedEdgeWithKey(e.key, e.source, e.target, { size: 1.5, color: EDGE_COLOR, label: e.label });
+    graph.addDirectedEdgeWithKey(e.key, e.source, e.target, { size: opts.edgeSize ?? 1.5, color: EDGE_COLOR, label: e.label });
   }
+  if (opts.sizeByDegree) applyDegreeSizes(graph);
   return added;
 }
 

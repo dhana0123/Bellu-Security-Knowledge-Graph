@@ -95,6 +95,11 @@ export interface Neighborhood {
   truncated: boolean;
 }
 
+/** GET /v1/graph/overview: a neighborhood-shaped graph plus the size of the whole graph. */
+export interface GraphOverview extends Neighborhood {
+  total: { nodes: number; relationships: number };
+}
+
 export interface CountEntry {
   name: string;
   count: number;

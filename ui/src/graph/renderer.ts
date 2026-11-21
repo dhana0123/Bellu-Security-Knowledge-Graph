@@ -15,6 +15,11 @@ export interface RendererCallbacks {
 export interface Renderer {
   setSelection(sel: Selection | null): void;
   setHiddenTypes(hidden: ReadonlySet<string>): void;
+  /**
+   * Large (whole-graph) mode: node captions only show once a node is drawn big enough (zoomed in),
+   * edge labels only show when zoomed in, and edges and labels are hidden while moving the camera.
+   */
+  setLarge(large: boolean): void;
   /** Re-reads node positions and attributes from the graph. */
   refresh(): void;
   fit(): void;
@@ -26,6 +31,11 @@ export interface Renderer {
  * elements: node and edge colours, arrowheads and labels are all drawn in WebGL or on a canvas.
  * Highlighting and hiding use nodeReducer / edgeReducer over a small mutable view state.
  */
+/** Rendered node radius (px) from which a caption is drawn in large mode. */
+export const LARGE_LABEL_SIZE_THRESHOLD = 9;
+/** Camera ratio below which edge labels are drawn in large mode (smaller ratio = more zoomed in). */
+export const LARGE_EDGE_LABEL_RATIO = 0.4;
+
 export function mountRenderer(container: HTMLElement, graph: BskgGraph, cb: RendererCallbacks): Renderer {
   const view: { selection: Selection | null; hidden: ReadonlySet<string> } = { selection: null, hidden: new Set() };
   const line = pathLine();
@@ -107,6 +117,15 @@ export function mountRenderer(container: HTMLElement, graph: BskgGraph, cb: Rend
     },
   });
 
+  let large = false;
+  let edgeLabels = true;
+  const syncEdgeLabels = () => {
+    const want = !large || sigma.getCamera().ratio < LARGE_EDGE_LABEL_RATIO;
+    if (want === edgeLabels) return;
+    edgeLabels = want;
+    sigma.setSetting('renderEdgeLabels', want);
+  };
+  sigma.getCamera().on('updated', syncEdgeLabels);
   sigma.on('clickNode', (p) => cb.onSelect(p.node));
   sigma.on('clickStage', () => cb.onSelect(null));
   sigma.on('doubleClickNode', (p) => {
@@ -122,6 +141,13 @@ export function mountRenderer(container: HTMLElement, graph: BskgGraph, cb: Rend
     setHiddenTypes(hidden) {
       view.hidden = hidden;
       sigma.refresh();
+    },
+    setLarge(l) {
+      large = l;
+      sigma.setSetting('labelRenderedSizeThreshold', l ? LARGE_LABEL_SIZE_THRESHOLD : 0);
+      sigma.setSetting('hideEdgesOnMove', l);
+      sigma.setSetting('hideLabelsOnMove', l);
+      syncEdgeLabels();
     },
     refresh() {
       sigma.refresh();

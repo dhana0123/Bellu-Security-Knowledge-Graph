@@ -118,6 +118,43 @@ by `id`. At most `limit` nodes (start node included). The start node is always r
 is true exactly when more nodes exist within `depth` than `limit` allows. 404 when the start node
 does not exist; 503 on timeout or when the store is unreachable.
 
+## GET /v1/graph/overview
+
+Query: `limit` (integer 1 to 5000, default 5000; anything else is `400 invalid_parameter`). Same
+authentication, rate limit and graph envelope as the other `/v1` routes. The result is cached per `limit`
+for `BSKG_STATS_TTL` (at most 8 limits are cached). Computations run under `BSKG_STATS_TIMEOUT`, concurrent
+requests share one run, and the previous result is served when a recomputation fails.
+
+```json
+{
+  "nodes": [{"id": "Vulnerability:CVE-2021-1", "type": "Vulnerability", "key": "CVE-2021-1",
+             "label": "CVE-2021-1", "properties": {"v3baseScore": 9.8}}],
+  "edges": [{"id": "Exploit:42|EXPLOITS|Vulnerability:CVE-2021-1",
+             "source": "Exploit:42", "target": "Vulnerability:CVE-2021-1", "type": "EXPLOITS"}],
+  "truncated": false,
+  "total": {"nodes": 3100, "relationships": 5300},
+  "graph": {...}
+}
+```
+
+Nodes and edges have the neighborhood shape: ids are `Label:key`, properties are scalars only with
+strings cut to 500 chars, `viewID` appears on `CHILD_OF` only, and both lists are sorted by `id`.
+Only phase-1 domain labels are included (never bookkeeping labels), and relationships with
+`removed = true` are left out.
+
+- **Whole graph.** When the phase-1 domain graph has at most `limit` nodes, every node and every
+  relationship between them is returned and `truncated` is false. `total` is then the returned counts.
+- **Ranked subset.** Otherwise `truncated` is true. Vulnerabilities are ranked by `exploitability` desc,
+  `v3baseScore` desc, `v2baseScore` desc (missing values last in each), then `cveID` asc. Walking that
+  order, each Vulnerability is added with its directly connected nodes (at most 500 per Vulnerability, in
+  `Label:key` order, nodes already selected are skipped) until `limit` nodes are selected. The last
+  Vulnerability may get only some of its neighbours. All relationships among the selected nodes follow.
+  `total` is the number of phase-1 domain nodes and relationships in the store (relationship counts include
+  ones marked removed).
+- The edge list is cut at `limit * 5` edges. When that happens `truncated` is true as well.
+
+Failure with no cached result: 504 on timeout, 503 when the store is unreachable, 500 otherwise.
+
 ## Entity routes (already present)
 
 - `GET /v1/vulnerabilities?q=&publishedFrom=&publishedTo=&cvssV3Min=&cvssV3Max=&exploitability=0|1&kev=&cwe=&includeRejected=&limit=&cursor=`

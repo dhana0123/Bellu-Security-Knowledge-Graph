@@ -16,13 +16,14 @@ type OpsConfig struct {
 }
 
 type ops struct {
-	s            *Server
-	q            queryFunc
-	sourceStatus SourceStatusFunc
-	cache        *statsCache
+	s             *Server
+	q             queryFunc
+	sourceStatus  SourceStatusFunc
+	cache         *statsCache
+	overviewCache *overviewCaches
 }
 
-// OpsRoutes registers GET /v1/status, /v1/stats and /v1/graph/neighborhood.
+// OpsRoutes registers GET /v1/status, /v1/stats, /v1/graph/neighborhood and /v1/graph/overview.
 func OpsRoutes(s *Server, c OpsConfig) {
 	if c.StatsTTL <= 0 {
 		c.StatsTTL = 5 * time.Minute
@@ -43,9 +44,22 @@ func OpsRoutes(s *Server, c OpsConfig) {
 			return res, err
 		},
 	}
+	o.overviewCache = &overviewCaches{
+		ttl: c.StatsTTL, timeout: c.StatsTimeout, now: s.cfg.Now,
+		compute: func(ctx context.Context, limit int) (*overviewResult, error) {
+			var res *overviewResult
+			err := c.Batch(ctx, func(q queryFunc) error {
+				var err error
+				res, err = computeOverview(ctx, q, limit)
+				return err
+			})
+			return res, err
+		},
+	}
 	s.Handle("GET /status", o.statusHandler)
 	s.Handle("GET /stats", o.stats)
 	s.Handle("GET /graph/neighborhood", o.neighborhood)
+	s.Handle("GET /graph/overview", o.overview)
 }
 
 // MigrationPending returns a Pending function for Config: true when the

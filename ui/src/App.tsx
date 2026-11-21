@@ -4,7 +4,6 @@ import { Login } from './auth/Login';
 import { BuildBanner } from './common/BuildBanner';
 import { Layout } from './common/Layout';
 import { CveDetail } from './cve/CveDetail';
-import { GraphEntry } from './graph/GraphEntry';
 import { GraphView } from './graph/GraphView';
 import { Search } from './search/Search';
 import { Stats } from './stats/Stats';
@@ -26,7 +25,7 @@ export function App() {
           <Route element={<Layout />}>
             <Route index element={<Search />} />
             <Route path="/cve/:id" element={<CveDetail />} />
-            <Route path="/graph" element={<GraphEntry />} />
+            <Route path="/graph" element={<GraphView />} />
             <Route path="/graph/:type/:id" element={<GraphView />} />
             <Route path="/stats" element={<Stats />} />
             <Route path="*" element={<Search />} />

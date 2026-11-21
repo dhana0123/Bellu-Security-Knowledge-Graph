@@ -5,6 +5,7 @@ import type {
   CveDetailData,
   ExploitRef,
   GraphEnvelope,
+  GraphOverview,
   Neighborhood,
   ProductRef,
   SearchFilters,
@@ -170,6 +171,19 @@ export function normalizeNeighborhood(body: Json): Neighborhood {
   };
 }
 
+/** Matches docs/api-shapes.md, GET /v1/graph/overview. A missing `total` falls back to the returned counts. */
+export function normalizeOverview(body: Json): GraphOverview {
+  const nb = normalizeNeighborhood(body);
+  const t = isObj(body.total) ? body.total : {};
+  return {
+    ...nb,
+    total: {
+      nodes: Math.max(0, Math.trunc(num(t.nodes, nb.nodes.length))),
+      relationships: Math.max(0, Math.trunc(num(t.relationships, nb.edges.length))),
+    },
+  };
+}
+
 export function createClient(opts: ClientOptions) {
   const doFetch = opts.fetchImpl ?? ((...a: Parameters<typeof fetch>) => fetch(...a));
   const timeoutMs = opts.timeoutMs ?? 30_000;
@@ -180,6 +194,7 @@ export function createClient(opts: ClientOptions) {
     params: Params = {},
     keyOverride?: string,
     signal?: AbortSignal,
+    timeoutOverrideMs?: number,
   ): Promise<Json> {
     const key = keyOverride ?? opts.getKey();
     const ctrl = new AbortController();
@@ -187,7 +202,7 @@ export function createClient(opts: ClientOptions) {
     const timer = setTimeout(() => {
       timedOut = true;
       ctrl.abort();
-    }, timeoutMs);
+    }, timeoutOverrideMs ?? timeoutMs);
     signal?.addEventListener('abort', () => ctrl.abort(), { once: true });
     let res: Response;
     try {
@@ -269,6 +284,12 @@ export function createClient(opts: ClientOptions) {
       signal?: AbortSignal,
     ): Promise<Neighborhood> {
       return normalizeNeighborhood(await request('graph', '/graph/neighborhood', p, undefined, signal));
+    },
+    /** The whole graph up to `limit` nodes (the API default and maximum is 5000). The server may take up to its own 30 s query limit. */
+    async overview(limit = 5000, signal?: AbortSignal): Promise<GraphOverview> {
+      return normalizeOverview(
+        await request('graph overview', '/graph/overview', { limit }, undefined, signal, timeoutMs + 15_000),
+      );
     },
     async stats(signal?: AbortSignal): Promise<StatsData> {
       return normalizeStats(await request('stats', '/stats', {}, undefined, signal));
