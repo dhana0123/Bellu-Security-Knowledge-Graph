@@ -61,3 +61,20 @@ func TestHoldLoopStop(t *testing.T) {
 	stop()
 	stop()
 }
+
+func TestUpstreamFromProps(t *testing.T) {
+	at := time.Date(2025, 1, 2, 3, 4, 5, 0, time.UTC)
+	got, gotAt := upstreamFromProps(map[string]any{
+		"source": "nvd", "version": "v", "upstream_cves": int64(10), "upstream_cvesNotRejected": int64(9),
+		"upstream_bad": "x", "upstream_": int64(1), "upstreamAt": at,
+	})
+	if len(got) != 2 || got["cves"] != 10 || got["cvesNotRejected"] != 9 || !gotAt.Equal(at) {
+		t.Fatalf("%v %v", got, gotAt)
+	}
+	if m, a := upstreamFromProps(nil); m != nil || !a.IsZero() {
+		t.Fatalf("%v %v", m, a)
+	}
+	if m, _ := upstreamFromProps(map[string]any{"source": "x"}); m != nil {
+		t.Fatalf("%v", m)
+	}
+}

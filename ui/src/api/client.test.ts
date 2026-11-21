@@ -148,6 +148,20 @@ describe('helpers', () => {
       { source: 'nvd', status: 'never run', lastSuccess: null, deadLetters: 0 },
     ]);
   });
+  it('normalizeStats reads the coverage block', () => {
+    const s = normalizeStats({
+      coverage: [
+        { source: 'nvd', upstream: { cves: 10, cvesNotRejected: 9, bad: 'x' }, upstreamAt: '2025-01-01T00:00:00Z', inGraph: { cves: 8 } },
+        { source: 'cwe', upstream: null, upstreamAt: null, inGraph: null },
+        'junk',
+      ],
+    });
+    expect(s.coverage).toEqual([
+      { source: 'nvd', upstream: { cves: 10, cvesNotRejected: 9 }, upstreamAt: '2025-01-01T00:00:00Z', inGraph: { cves: 8 } },
+      { source: 'cwe', upstream: null, upstreamAt: null, inGraph: null },
+    ]);
+    expect(normalizeStats({}).coverage).toEqual([]);
+  });
   it('parseEnvelope keeps a null buildMode and per-source lastSuccess', () => {
     const e = parseEnvelope({ graph: { version: 'dev', buildState: 'ready', buildMode: null, stale: false, sources: { nvd: { lastSuccess: null }, cwe: { lastSuccess: 'x' } } } });
     expect(e).toEqual({ version: 'dev', buildState: 'ready', buildMode: null, stale: false, sources: { nvd: { lastSuccess: null }, cwe: { lastSuccess: 'x' } } });

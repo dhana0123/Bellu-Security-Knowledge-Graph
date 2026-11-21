@@ -157,8 +157,33 @@ func Run(ctx context.Context, st Store, ad source.Adapter, o Options) (Result, e
 			return res, fmt.Errorf("pipeline: %s: store version: %w", name, err)
 		}
 	}
+	if !o.ReplayDeadLetters {
+		r.recordUpstream(context.WithoutCancel(ctx))
+	}
 	r.log.Info("sync run finished", "status", status, "fetched", r.committed.Fetched, "failed", r.committed.Failed)
 	return res, nil
+}
+
+// recordUpstream asks an adapter that implements source.Totaler for the
+// upstream counts and stores them on the Checkpoint node. Any failure is a
+// warning; it never fails the run. The totals describe the upstream, so they
+// are stored in sample mode too.
+func (r *runner) recordUpstream(ctx context.Context) {
+	t, ok := r.ad.(source.Totaler)
+	if !ok {
+		return
+	}
+	totals, err := t.Totals(ctx)
+	if err != nil {
+		r.log.Warn("upstream totals unavailable", "error", err.Error())
+		return
+	}
+	if len(totals) == 0 {
+		return
+	}
+	if err := r.st.WriteUpstream(ctx, r.src, totals, r.o.Now()); err != nil {
+		r.log.Warn("store upstream totals failed", "error", err.Error())
+	}
 }
 
 func (r *runner) execute(ctx context.Context) error {

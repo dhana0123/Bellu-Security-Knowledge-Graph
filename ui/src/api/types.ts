@@ -128,6 +128,15 @@ export interface SyncEntry {
   deadLetters: number | null;
 }
 
+/** One /v1/stats "coverage" entry: upstream totals next to what the graph holds. */
+export interface CoverageEntry {
+  source: string;
+  /** null until the source recorded totals. */
+  upstream: Record<string, number> | null;
+  upstreamAt: string | null;
+  /** null when the server could not read the graph counts. */
+  inGraph: Record<string, number> | null;
+}
 export interface StatsData {
   generatedAt: string | null;
   statsStale: boolean;
@@ -140,4 +149,5 @@ export interface StatsData {
   topVendors: TopEntry[];
   topProducts: TopEntry[];
   sync: SyncEntry[];
+  coverage: CoverageEntry[];
 }

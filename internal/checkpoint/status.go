@@ -2,6 +2,7 @@ package checkpoint
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
@@ -22,6 +23,10 @@ type SourceStatus struct {
 	Total       int64
 	LastSuccess time.Time // zero when none
 	DeadLetters int64
+	// Upstream holds the upstream database's own totals (properties
+	// upstream_<name> of the Checkpoint); nil when none were recorded.
+	Upstream   map[string]int64
+	UpstreamAt time.Time // zero when none
 }
 
 const cypherStatus = `UNWIND $sources AS s
@@ -38,7 +43,7 @@ CALL { WITH s
   RETURN count(d) AS dl }
 RETURN s AS source, c IS NOT NULL AS found, c.watermark AS watermark, c.resume AS resume, c.version AS version,
   last.status AS status, last.error AS error, last.startedAt AS startedAt, last.step AS step,
-  last.processed AS processed, last.total AS total, lastSuccess, dl`
+  last.processed AS processed, last.total AS total, lastSuccess, dl, properties(c) AS props`
 
 // ReadStatus returns one SourceStatus per given source, in the given order.
 func ReadStatus(ctx context.Context, g *graph.Client, sources []string) ([]SourceStatus, error) {
@@ -67,6 +72,8 @@ func ReadStatus(ctx context.Context, g *graph.Client, sources []string) ([]Sourc
 			s.Total, _ = m["total"].(int64)
 			s.LastSuccess, _ = m["lastSuccess"].(time.Time)
 			s.DeadLetters, _ = m["dl"].(int64)
+			props, _ := m["props"].(map[string]any)
+			s.Upstream, s.UpstreamAt = upstreamFromProps(props)
 			by[s.Source] = s
 		}
 		if err := r.Err(); err != nil {
@@ -86,4 +93,26 @@ func ReadStatus(ctx context.Context, g *graph.Client, sources []string) ([]Sourc
 		return nil, err
 	}
 	return v.([]SourceStatus), nil
+}
+
+// upstreamFromProps extracts the upstream_ integer properties and upstreamAt
+// from the properties of a Checkpoint node. The map is nil when none exist.
+func upstreamFromProps(props map[string]any) (map[string]int64, time.Time) {
+	var out map[string]int64
+	for k, v := range props {
+		name, ok := strings.CutPrefix(k, UpstreamPrefix)
+		if !ok || name == "" {
+			continue
+		}
+		n, ok := v.(int64)
+		if !ok {
+			continue
+		}
+		if out == nil {
+			out = map[string]int64{}
+		}
+		out[name] = n
+	}
+	at, _ := props["upstreamAt"].(time.Time)
+	return out, at
 }

@@ -191,6 +191,14 @@ RETURN vd.vendorName AS key, count(DISTINCT v) AS n ORDER BY n DESC, key ASC LIM
 MATCH (v:Vulnerability)-[:AFFECTS]->(p:Product) WHERE coalesce(v.rejected, false) = false
 RETURN p.productName AS key, count(v) AS n ORDER BY n DESC, key ASC LIMIT 10`
 
+	// Source coverage: what the graph holds, to compare with the upstream
+	// totals stored on the Checkpoint nodes.
+	cypherCoverageVulns = `
+MATCH (v:Vulnerability)
+RETURN count(v) AS cves, count(CASE WHEN coalesce(v.rejected, false) = false THEN 1 END) AS cvesNotRejected`
+	cypherCoverageWeaknesses = `MATCH (w:Weakness) RETURN count(w) AS weaknesses`
+	cypherCoverageExploits   = `MATCH (e:Exploit) RETURN count(e) AS exploits`
+
 	// Sources list (no graph access beyond the envelope; kept for completeness
 	// of last-success reads).
 	cypherSourceLastSuccess = cypherLastRuns
@@ -210,6 +218,7 @@ var allQueries = []string{
 	cypherSourceLastSuccess,
 	cypherStatusBuild, cypherStatusJobs, cypherMigrationVersion,
 	cypherStatsScan, cypherStatsTopWeaknesses, cypherStatsTopVendors, cypherStatsTopProducts,
+	cypherCoverageVulns, cypherCoverageWeaknesses, cypherCoverageExploits,
 }
 
 // Row is one result record as a column map.

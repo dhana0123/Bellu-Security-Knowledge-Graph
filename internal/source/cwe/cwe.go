@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/bellu/bskg/internal/httpx"
@@ -36,6 +37,9 @@ type Adapter struct {
 	client *http.Client
 	clock  httpx.Clock
 	policy httpx.Policy
+
+	mu     sync.Mutex
+	totals map[string]int64 // counts of the last parsed catalog; nil if none
 }
 
 // Option configures an Adapter.
@@ -113,6 +117,19 @@ func canon(id string) (string, bool) {
 	return strconv.FormatUint(n, 10), true
 }
 
+// Totals implements source.Totaler. It returns the element counts of the last
+// catalog parsed in this process, or an empty map when none was parsed. Views
+// are not parsed, so no "views" key is reported.
+func (a *Adapter) Totals(context.Context) (map[string]int64, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	out := make(map[string]int64, len(a.totals))
+	for k, v := range a.totals {
+		out[k] = v
+	}
+	return out, nil
+}
+
 // Fetch implements source.Adapter. Pass 1 validates the whole catalog and
 // collects the ids; pass 2 is streamed by the returned iterator. Any error
 // here happens before the first write.
@@ -126,11 +143,9 @@ func (a *Adapter) Fetch(ctx context.Context, cp source.Checkpoint, _ source.RunO
 		return nil, fail("", err)
 	}
 	version := cr.Version
-	if cp.Version != "" && cp.Version == version {
-		cr.Close()
-		return &iterator{}, nil // unchanged: no record, no write
-	}
+	unchanged := cp.Version != "" && cp.Version == version
 	ids := map[string]bool{}
+	counts := map[string]int64{"weaknesses": 0, "categories": 0}
 	for {
 		el, err := cr.Next()
 		if errors.Is(err, io.EOF) {
@@ -138,14 +153,33 @@ func (a *Adapter) Fetch(ctx context.Context, cp source.Checkpoint, _ source.RunO
 		}
 		if err != nil {
 			cr.Close()
+			if unchanged {
+				return &iterator{}, nil // unchanged: no record, no write; counts are not recorded
+			}
 			return nil, fail(version, err)
+		}
+		switch el.Kind {
+		case "Weakness":
+			counts["weaknesses"]++
+		case "Category":
+			counts["categories"]++
 		}
 		n, ok := canon(el.ID)
 		if !ok {
+			if unchanged {
+				continue
+			}
 			cr.Close()
 			return nil, fail(version, fmt.Errorf("%s has invalid ID %q", el.Kind, el.ID))
 		}
 		ids[n] = true
+	}
+	a.mu.Lock()
+	a.totals = counts
+	a.mu.Unlock()
+	if unchanged {
+		cr.Close()
+		return &iterator{}, nil // unchanged: no record, no write
 	}
 	cr.Close()
 	return &iterator{data: data, version: version, ids: ids}, nil

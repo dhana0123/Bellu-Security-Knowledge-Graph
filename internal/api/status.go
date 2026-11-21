@@ -77,6 +77,8 @@ type statusResult struct {
 	Sources     []sourceStatusJSON `json:"sources"`
 	Queue       queueJSON          `json:"queue"`
 	Validation  *validationJSON    `json:"validation"`
+
+	raw []checkpoint.SourceStatus // not serialized; read by the stats coverage block
 }
 
 func tptr(t time.Time) *time.Time {
@@ -125,6 +127,7 @@ func (o *ops) status(ctx context.Context) (*statusResult, error) {
 		return nil, err
 	}
 	res := &statusResult{BuildState: DefaultBuildState, Sources: make([]sourceStatusJSON, 0, len(srcs)), Queue: queueJSON{Jobs: []jobJSON{}}}
+	res.raw = srcs
 	for _, s := range srcs {
 		res.Sources = append(res.Sources, toSourceJSON(s))
 	}

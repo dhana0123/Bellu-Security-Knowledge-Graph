@@ -20,6 +20,15 @@ type Adapter interface {
 	Normalize(rec Record) (Normalized, error)
 }
 
+// Totaler is optionally implemented by an adapter that can report the
+// upstream database's own counts, so the graph can be compared with it. The
+// pipeline calls Totals once after a run ended succeeded or
+// succeeded_with_errors. Keys match ^[a-zA-Z][a-zA-Z0-9]*$ and are stored as
+// Checkpoint properties upstream_<key>.
+type Totaler interface {
+	Totals(ctx context.Context) (map[string]int64, error)
+}
+
 var nameRe = regexp.MustCompile(`^[a-z][a-z0-9]{0,15}$`)
 
 // ValidName reports whether name may be used as an adapter name.

@@ -723,3 +723,63 @@ func TestParseGitLink(t *testing.T) {
 		}
 	}
 }
+
+func TestTotals(t *testing.T) {
+	var mu sync.Mutex
+	var raws []string
+	var keys []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		raws = append(raws, r.URL.RawQuery)
+		keys = append(keys, r.Header.Get("apiKey"))
+		mu.Unlock()
+		total := 300
+		if _, ok := r.URL.Query()["noRejected"]; ok {
+			total = 290
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"resultsPerPage": 1, "startIndex": 0, "totalResults": total, "vulnerabilities": []any{}})
+	}))
+	defer srv.Close()
+	clk := &fakeClock{now: t0}
+	a := New(Options{BaseURL: srv.URL, APIKey: "k", Client: httpx.NewAllowList("127.0.0.1").NewClient(0), Clock: clk,
+		Log: slog.New(slog.NewTextHandler(io.Discard, nil))})
+	m, err := a.Totals(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(m) != 2 || m["cves"] != 300 || m["cvesNotRejected"] != 290 {
+		t.Fatalf("%v", m)
+	}
+	if len(raws) != 2 || keys[0] != "k" {
+		t.Fatalf("%v %v", raws, keys)
+	}
+	for _, q := range raws {
+		if !strings.Contains(q, "resultsPerPage=1") || !strings.Contains(q, "startIndex=0") {
+			t.Fatalf("query %q", q)
+		}
+	}
+	if strings.Contains(raws[0], "noRejected") || !strings.Contains(raws[1], "noRejected") {
+		t.Fatalf("noRejected only on the second request: %v", raws)
+	}
+}
+
+func TestTotalsRetriesAndFails(t *testing.T) {
+	f := newFake(t)
+	f.fail = func(n int) (int, string) { return 503, "" }
+	a, _ := setup(t, f, Options{})
+	if _, err := a.Totals(context.Background()); err == nil {
+		t.Fatal("want error")
+	}
+	f2 := newFake(t)
+	f2.fail = func(n int) (int, string) {
+		if n == 0 {
+			return 503, ""
+		}
+		return 0, ""
+	}
+	a, _ = setup(t, f2, Options{})
+	m, err := a.Totals(context.Background())
+	if err != nil || m["cves"] != int64(len(f2.all)) || m["cvesNotRejected"] != int64(len(f2.all)) {
+		t.Fatalf("%v %v", m, err)
+	}
+}

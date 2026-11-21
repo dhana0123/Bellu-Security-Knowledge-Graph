@@ -69,7 +69,7 @@ All timestamps are RFC 3339 UTC or `null`.
 
 ## GET /v1/stats
 
-Cached for `BSKG_STATS_TTL` (default 5m). `sync`, `buildState`, `buildMode` are read per request.
+Cached for `BSKG_STATS_TTL` (default 5m). `sync`, `coverage`, `buildState`, `buildMode` are read per request.
 
 ```json
 {
@@ -84,10 +84,30 @@ Cached for `BSKG_STATS_TTL` (default 5m). `sync`, `buildState`, `buildMode` are 
   "topProducts": [{"key": "widget", "count": 3}],
   "exploitedShare": {"exploited": 2, "total": 6, "ratio": 0.3333},
   "sync": [ /* same objects as /v1/status "sources"; null if unavailable */ ],
+  "coverage": [                                              // one per enabled source, in configured order; [] if the live read failed
+    {"source": "nvd",
+     "upstream": {"cves": 300000, "cvesNotRejected": 290000},  // null until the source recorded totals
+     "upstreamAt": "2025-01-10T03:00:00Z",                     // null with upstream
+     "inGraph": {"cves": 1000, "cvesNotRejected": 990}}        // null if the graph counts could not be read
+  ],
   "buildState": "ready", "buildMode": "sample",              // omitted if the live read failed
   "graph": {...}
 }
 ```
+`coverage` compares the upstream database's own totals with what the graph holds. The pipeline stores the
+upstream totals on the source's Checkpoint node (`upstream_<name>`, `upstreamAt`) after every run that ends
+`succeeded` or `succeeded_with_errors`, also in sample builds and when the version was unchanged. A failure to
+get totals is logged and does not fail the run. The in-graph counts are read per request.
+
+| source | `upstream` keys | `inGraph` keys |
+|---|---|---|
+| `nvd` | `cves` (all CVEs), `cvesNotRejected` (`noRejected` query) | `cves` (Vulnerability nodes), `cvesNotRejected` (Vulnerability nodes whose `rejected` is not true) |
+| `cwe` | `weaknesses`, `categories` of the last parsed catalog (views are not parsed) | `weaknesses` (Weakness nodes) |
+| `exploitdb` | `rows`, `rowsWithCve` (rows with at least one valid CVE id), `invalidRows` | `exploits` (Exploit nodes) |
+
+Only Exploit-DB rows with a CVE that exists in the graph become Exploit nodes, so compare `exploits` with
+`rowsWithCve`, not with `rows`. A CWE run that starts from a process that never parsed the catalog records no
+totals.
 
 Failure with no cached result: 504 on timeout, 500 otherwise.
 

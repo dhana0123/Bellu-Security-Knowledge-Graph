@@ -243,3 +243,20 @@ func TestBadArchiveNamesSource(t *testing.T) {
 		t.Fatalf("truncated catalog must fail naming the version: %v", err)
 	}
 }
+
+func TestTotalsFromParsedCatalog(t *testing.T) {
+	a := serve(t, fixtureZip(t, "catalog.xml", nil))
+	if m, err := a.Totals(context.Background()); err != nil || len(m) != 0 {
+		t.Fatalf("before any fetch: %v %v", m, err)
+	}
+	for _, cp := range []source.Checkpoint{{}, {Version: "5.0"}} { // fresh, then unchanged
+		a = serve(t, fixtureZip(t, "catalog.xml", nil))
+		if _, err := a.Fetch(context.Background(), cp, source.RunOptions{}); err != nil {
+			t.Fatal(err)
+		}
+		m, err := a.Totals(context.Background())
+		if err != nil || len(m) != 2 || m["weaknesses"] != 3 || m["categories"] != 1 {
+			t.Fatalf("checkpoint %+v: %v %v", cp, m, err)
+		}
+	}
+}

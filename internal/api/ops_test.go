@@ -512,3 +512,59 @@ func TestKeyExprUsesLabelSpecificKey(t *testing.T) {
 		t.Errorf("nidExpr = %s", q)
 	}
 }
+
+func TestStatsCoverage(t *testing.T) {
+	at := time.Date(2025, 2, 3, 4, 5, 6, 0, time.UTC)
+	var calls atomic.Int32
+	base := statsFake(&calls)
+	q := func(ctx context.Context, query string, p map[string]any) ([]Row, error) {
+		switch query {
+		case cypherCoverageVulns:
+			return []Row{{"cves": int64(10), "cvesNotRejected": int64(9)}}, nil
+		case cypherCoverageWeaknesses:
+			return []Row{{"weaknesses": int64(4)}}, nil
+		case cypherCoverageExploits:
+			return nil, errors.New("down")
+		}
+		return base(ctx, query, p)
+	}
+	src := func(_ context.Context, names []string) ([]checkpoint.SourceStatus, error) {
+		by := map[string]checkpoint.SourceStatus{
+			"nvd": {Source: "nvd", Upstream: map[string]int64{"cves": 12, "cvesNotRejected": 11}, UpstreamAt: at},
+			"cwe": {Source: "cwe"},
+		}
+		var out []checkpoint.SourceStatus
+		for _, n := range names {
+			s, ok := by[n]
+			if !ok {
+				s = checkpoint.SourceStatus{Source: n}
+			}
+			out = append(out, s)
+		}
+		return out, nil
+	}
+	e := opsEnv(t, q, src, nil)
+	e.srv.cfg.Sources = []string{"exploitdb", "nvd", "cwe"}
+	code, body := getJSON(t, e, "/v1/stats")
+	if code != 200 {
+		t.Fatalf("%d %v", code, body)
+	}
+	cov, _ := body["coverage"].([]any)
+	if len(cov) != 3 {
+		t.Fatalf("coverage %v", body["coverage"])
+	}
+	m := func(i int) map[string]any { return cov[i].(map[string]any) }
+	if m(0)["source"] != "exploitdb" || m(0)["upstream"] != nil || m(0)["inGraph"] != nil {
+		t.Fatalf("exploitdb %v", m(0))
+	}
+	up, _ := m(1)["upstream"].(map[string]any)
+	ig, _ := m(1)["inGraph"].(map[string]any)
+	if m(1)["source"] != "nvd" || up["cves"] != float64(12) || up["cvesNotRejected"] != float64(11) ||
+		m(1)["upstreamAt"] != "2025-02-03T04:05:06Z" || ig["cves"] != float64(10) || ig["cvesNotRejected"] != float64(9) {
+		t.Fatalf("nvd %v", m(1))
+	}
+	ig, _ = m(2)["inGraph"].(map[string]any)
+	if m(2)["source"] != "cwe" || m(2)["upstream"] != nil || m(2)["upstreamAt"] != nil || ig["weaknesses"] != float64(4) {
+		t.Fatalf("cwe %v", m(2))
+	}
+}

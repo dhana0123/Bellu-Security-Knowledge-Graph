@@ -39,6 +39,10 @@ type fakeStore struct {
 	failApply func(n int, w upsert.Writes) error
 	applyN    int
 	cursors   int
+
+	upstream    map[string]int64
+	upstreamAt  time.Time
+	upstreamErr error
 }
 
 func newFake() *fakeStore {
@@ -81,6 +85,17 @@ func (f *fakeStore) WriteVersion(_ context.Context, _, v string) error {
 	f.versions = append(f.versions, v)
 	return nil
 }
+func (f *fakeStore) WriteUpstream(_ context.Context, _ string, totals map[string]int64, at time.Time) error {
+	f.ev("upstream")
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.upstreamErr != nil {
+		return f.upstreamErr
+	}
+	f.upstream, f.upstreamAt = totals, at
+	return nil
+}
+
 func (f *fakeStore) ListDeadLetters(context.Context, string, string) ([]checkpoint.DeadLetter, error) {
 	var out []checkpoint.DeadLetter
 	for _, d := range f.dead {
@@ -467,5 +482,71 @@ func TestRegistry(t *testing.T) {
 	}
 	if _, ok := r.Get("stub"); !ok || len(r.Names()) != 1 {
 		t.Fatal("lookup")
+	}
+}
+
+// totalerAdapter adds source.Totaler to stubAdapter.
+type totalerAdapter struct {
+	*stubAdapter
+	totals map[string]int64
+	err    error
+	calls  int
+}
+
+func (a *totalerAdapter) Totals(context.Context) (map[string]int64, error) {
+	a.calls++
+	return a.totals, a.err
+}
+
+func TestUpstreamTotalsStoredAfterSuccess(t *testing.T) {
+	now := time.Date(2025, 1, 2, 3, 4, 5, 0, time.UTC)
+	for _, sample := range []int{0, 2} {
+		f := newFake()
+		a := &totalerAdapter{stubAdapter: &stubAdapter{f: f, recs: []source.Record{rec(1, "a"), rec(2, "b")}}, totals: map[string]int64{"cves": 7}}
+		_, err := Run(context.Background(), f, a, Options{SampleLimit: sample, BatchSize: 10, Sleep: noSleep, Now: func() time.Time { return now }})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if a.calls != 1 || f.upstream["cves"] != 7 || !f.upstreamAt.Equal(now) {
+			t.Fatalf("sample=%d calls=%d %v %v", sample, a.calls, f.upstream, f.upstreamAt)
+		}
+	}
+}
+
+func TestUpstreamTotalsStoredWhenNothingFetched(t *testing.T) {
+	f := newFake()
+	a := &totalerAdapter{stubAdapter: &stubAdapter{f: f}, totals: map[string]int64{"rows": 3}}
+	if _, err := Run(context.Background(), f, a, Options{Sleep: noSleep}); err != nil {
+		t.Fatal(err)
+	}
+	if f.upstream["rows"] != 3 {
+		t.Fatalf("%v", f.upstream)
+	}
+}
+
+func TestUpstreamTotalsFailureIsOnlyAWarning(t *testing.T) {
+	f := newFake()
+	a := &totalerAdapter{stubAdapter: &stubAdapter{f: f, recs: []source.Record{rec(1, "a")}}, err: errors.New("boom")}
+	res, err := Run(context.Background(), f, a, Options{Sleep: noSleep})
+	if err != nil || res.Status != checkpoint.StatusSucceeded || f.upstream != nil {
+		t.Fatalf("%v %+v %v", err, res, f.upstream)
+	}
+	f2 := newFake()
+	f2.upstreamErr = errors.New("write failed")
+	a2 := &totalerAdapter{stubAdapter: &stubAdapter{f: f2, recs: []source.Record{rec(1, "a")}}, totals: map[string]int64{"x": 1}}
+	if res, err := Run(context.Background(), f2, a2, Options{Sleep: noSleep}); err != nil || res.Status != checkpoint.StatusSucceeded {
+		t.Fatalf("%v %+v", err, res)
+	}
+}
+
+func TestUpstreamTotalsNotCalledOnFailedRun(t *testing.T) {
+	f := newFake()
+	f.failApply = func(int, upsert.Writes) error { return errors.New("fatal") }
+	a := &totalerAdapter{stubAdapter: &stubAdapter{f: f, recs: []source.Record{rec(1, "a")}}, totals: map[string]int64{"x": 1}}
+	if _, err := Run(context.Background(), f, a, Options{Sleep: noSleep}); err == nil {
+		t.Fatal("want error")
+	}
+	if a.calls != 0 || f.upstream != nil {
+		t.Fatalf("calls=%d %v", a.calls, f.upstream)
 	}
 }

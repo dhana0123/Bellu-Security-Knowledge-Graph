@@ -2,6 +2,7 @@
 import { ApiError } from './errors';
 import type {
   CountEntry,
+  CoverageEntry,
   CveDetailData,
   ExploitRef,
   FixCommitRef,
@@ -91,6 +92,23 @@ function toSync(o: Json): SyncEntry {
   };
 }
 
+/** A name-to-count object; null when absent or not an object. Non-numeric values are dropped. */
+function toMetrics(v: unknown): Record<string, number> | null {
+  if (!isObj(v)) return null;
+  const out: Record<string, number> = {};
+  for (const [k, n] of Object.entries(v)) {
+    if (typeof n === 'number' && Number.isFinite(n)) out[k] = n;
+  }
+  return out;
+}
+function toCoverage(o: Json): CoverageEntry {
+  return {
+    source: str(o.source),
+    upstream: toMetrics(o.upstream),
+    upstreamAt: o.upstreamAt == null ? null : str(o.upstreamAt),
+    inGraph: toMetrics(o.inGraph),
+  };
+}
 /** Matches docs/api-shapes.md, GET /v1/stats. */
 export function normalizeStats(body: Json): StatsData {
   const ex = isObj(body.exploitedShare) ? body.exploitedShare : {};
@@ -106,6 +124,7 @@ export function normalizeStats(body: Json): StatsData {
     topVendors: toTop(body.topVendors),
     topProducts: toTop(body.topProducts),
     sync: arr(body.sync).filter(isObj).map(toSync),
+    coverage: arr(body.coverage).filter(isObj).map(toCoverage),
   };
 }
 

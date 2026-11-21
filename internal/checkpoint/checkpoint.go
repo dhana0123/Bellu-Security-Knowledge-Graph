@@ -2,6 +2,8 @@ package checkpoint
 
 import (
 	"context"
+	"fmt"
+	"regexp"
 	"time"
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
@@ -28,6 +30,10 @@ SET c.resume = $resume, c.updatedAt = datetime(),
 
 	cypherWriteVersion = `MERGE (c:Checkpoint {source: $source})
 SET c.version = $version, c.updatedAt = datetime()`
+
+	// Merges upstream_<key> integers and upstreamAt from one map parameter.
+	cypherWriteUpstream = `MERGE (c:Checkpoint {source: $source})
+SET c += $props, c.upstreamAt = $at`
 
 	// Raises the watermark to w when w is later than the stored value.
 	cypherRaiseWatermark = `MERGE (c:Checkpoint {source: $source})
@@ -89,4 +95,24 @@ func RaiseWatermark(ctx context.Context, tx neo4j.ManagedTransaction, source str
 // WriteVersion stores the snapshot version after a successful run.
 func WriteVersion(ctx context.Context, tx neo4j.ManagedTransaction, source, version string) error {
 	return runTx(ctx, tx, cypherWriteVersion, map[string]any{"source": source, "version": version})
+}
+
+// UpstreamPrefix is the Checkpoint property prefix of upstream totals.
+const UpstreamPrefix = "upstream_"
+
+var upstreamKeyRe = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9]{0,63}$`)
+
+// WriteUpstream stores upstream totals as properties upstream_<key> and the
+// time as upstreamAt. It does not touch updatedAt, which tracks cursor and
+// version writes. Keys must be alphanumeric because they become property
+// names; they are passed as a map parameter, never spliced into Cypher.
+func WriteUpstream(ctx context.Context, tx neo4j.ManagedTransaction, source string, totals map[string]int64, at time.Time) error {
+	props := make(map[string]any, len(totals))
+	for k, v := range totals {
+		if !upstreamKeyRe.MatchString(k) {
+			return fmt.Errorf("checkpoint: invalid upstream key %q", k)
+		}
+		props[UpstreamPrefix+k] = v
+	}
+	return runTx(ctx, tx, cypherWriteUpstream, map[string]any{"source": source, "props": props, "at": at})
 }

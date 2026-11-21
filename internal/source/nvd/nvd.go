@@ -117,6 +117,43 @@ func New(o Options) *Adapter {
 // Name implements source.Adapter.
 func (a *Adapter) Name() string { return Name }
 
+var _ source.Totaler = (*Adapter)(nil)
+
+// Totals implements source.Totaler. It asks NVD for one record twice and reads
+// totalResults: "cves" counts every CVE, "cvesNotRejected" excludes rejected
+// ones (noRejected). The requests use the adapter's client, limiter and policy.
+func (a *Adapter) Totals(ctx context.Context) (map[string]int64, error) {
+	out := map[string]int64{}
+	for _, c := range []struct {
+		key        string
+		noRejected bool
+	}{{"cves", false}, {"cvesNotRejected", true}} {
+		q := url.Values{}
+		q.Set("resultsPerPage", "1")
+		q.Set("startIndex", "0")
+		u := a.base + "?" + q.Encode()
+		if c.noRejected {
+			u += "&noRejected" // a flag parameter without a value
+		}
+		var pg page
+		var last error
+		err := httpx.Do(ctx, a.policy, a.clock, func(int) error {
+			var err error
+			pg, err = a.get(ctx, u)
+			last = err
+			return err
+		})
+		if err != nil {
+			if last != nil {
+				err = last
+			}
+			return nil, fmt.Errorf("nvd: totals %s: %w", c.key, err)
+		}
+		out[c.key] = int64(pg.total)
+	}
+	return out, nil
+}
+
 // Fetch implements source.Adapter. SampleLimit > 0 selects the sample rule and
 // ignores cp; SampleOrder "latest" takes the last SampleLimit records instead
 // of the first. Otherwise a Resume of the form full@... or an empty Checkpoint

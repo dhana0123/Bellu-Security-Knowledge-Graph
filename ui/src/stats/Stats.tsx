@@ -1,10 +1,11 @@
 import { useAuth } from '../auth/AuthContext';
-import type { CountEntry, TopEntry } from '../api/types';
-import { btn, card, h1, h2, td, th } from '../common/classes';
+import type { CountEntry, CoverageEntry, SourceInfo, TopEntry } from '../api/types';
+import { btn, card, h1, h2, muted, td, th } from '../common/classes';
 import { ErrorMessage, Loading } from '../common/ErrorMessage';
 import { formatPercent } from '../common/text';
 import { useRequest } from '../common/useRequest';
 import { BarChart } from './BarChart';
+import { coveragePercent, coverageRows } from './coverage';
 
 function CountTable({ title, rows }: { title: string; rows: CountEntry[] }) {
   return (
@@ -39,6 +40,55 @@ function Top({ title, rows }: { title: string; rows: TopEntry[] }) {
   );
 }
 
+function Coverage({ entries }: { entries: CoverageEntry[] }) {
+  const { sources } = useAuth();
+  const rows = coverageRows(entries);
+  const notices = entries
+    .map((e) => sources.find((i) => i.name.toLowerCase() === e.source.toLowerCase()))
+    .filter((i): i is SourceInfo => !!i && i.attribution !== '');
+  const fmt = (n: number | null) => (n === null ? '' : n.toLocaleString('en-US'));
+  return (
+    <>
+      <h2 className={h2}>Source coverage</h2>
+      <table aria-label="Source coverage" className="w-full border-collapse text-sm">
+        <thead>
+          <tr>
+            <th scope="col" className={th}>Source</th>
+            <th scope="col" className={th}>Metric</th>
+            <th scope="col" className={th}>Upstream total</th>
+            <th scope="col" className={th}>In graph</th>
+            <th scope="col" className={th}>Coverage %</th>
+            <th scope="col" className={th}>Last checked</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.key}>
+              <td className={td}>{r.source}</td>
+              <td className={td}>{r.metric}</td>
+              <td className={td}>{r.upstream === null ? 'not recorded yet' : fmt(r.upstream)}</td>
+              <td className={td}>{fmt(r.inGraph)}</td>
+              <td className={td}>{coveragePercent(r.inGraph, r.upstream) ?? ''}</td>
+              <td className={td}>{r.upstreamAt ?? (r.upstream === null ? 'not recorded yet' : '')}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {entries.some((e) => e.source === 'exploitdb') && (
+        <p className={`mt-2 text-xs ${muted}`}>
+          Exploit-DB: only rows with a CVE that exists in the graph become Exploit nodes, so compare the exploits in the
+          graph with the rows that list a CVE, not with all rows.
+        </p>
+      )}
+      {notices.map((i) => (
+        <p key={i.name} className={`mt-2 text-xs ${muted}`}>
+          {i.attribution}
+        </p>
+      ))}
+    </>
+  );
+}
+
 export function Stats() {
   const { client, graph } = useAuth();
   const req = useRequest((signal) => client.stats(signal), [client]);
@@ -58,6 +108,7 @@ export function Stats() {
               These statistics are stale: the latest computation failed and the previous result is shown.
             </p>
           )}
+          <Coverage entries={s.coverage} />
           <p className="my-3 text-sm text-slate-300">
             Build state: {graph?.buildState ?? 'unknown'}. Build mode: {graph?.buildMode ?? 'not set'}.
             {s.generatedAt ? ` Generated at ${s.generatedAt}.` : ''}

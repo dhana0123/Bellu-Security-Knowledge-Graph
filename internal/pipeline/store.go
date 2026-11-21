@@ -40,6 +40,9 @@ type Store interface {
 	StartRun(ctx context.Context, id, source string, at time.Time) error
 	FinishRun(ctx context.Context, id, status, errMsg string, at time.Time) error
 	WriteVersion(ctx context.Context, source, version string) error
+	// WriteUpstream stores the upstream totals and their time on the
+	// source's Checkpoint node.
+	WriteUpstream(ctx context.Context, source string, totals map[string]int64, at time.Time) error
 	ListDeadLetters(ctx context.Context, source, kind string) ([]checkpoint.DeadLetter, error)
 	// InTx runs fn in one write transaction. It does not retry; the
 	// pipeline applies the batch retry policy.
@@ -75,6 +78,13 @@ func (s *GraphStore) FinishRun(ctx context.Context, id, status, errMsg string, a
 func (s *GraphStore) WriteVersion(ctx context.Context, source, version string) error {
 	_, err := s.G.WriteRetry(ctx, func(ctx context.Context, tx neo4j.ManagedTransaction) (any, error) {
 		return nil, checkpoint.WriteVersion(ctx, tx, source, version)
+	})
+	return err
+}
+
+func (s *GraphStore) WriteUpstream(ctx context.Context, source string, totals map[string]int64, at time.Time) error {
+	_, err := s.G.WriteRetry(ctx, func(ctx context.Context, tx neo4j.ManagedTransaction) (any, error) {
+		return nil, checkpoint.WriteUpstream(ctx, tx, source, totals, at)
 	})
 	return err
 }

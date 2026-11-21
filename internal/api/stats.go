@@ -12,6 +12,7 @@ import (
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
+	"github.com/bellu/bskg/internal/checkpoint"
 	"github.com/bellu/bskg/internal/graph"
 	"github.com/bellu/bskg/internal/model"
 )
@@ -309,6 +310,7 @@ func (o *ops) stats(w http.ResponseWriter, r *http.Request) {
 		"topProducts":      nonNil(res.TopProducts),
 		"exploitedShare":   res.ExploitedShare,
 		"sync":             nil,
+		"coverage":         []coverageJSON{},
 	}
 	// Live fields, never cached. A failure here does not fail the statistics.
 	ctx, cancel := o.s.QueryContext(r)
@@ -317,6 +319,7 @@ func (o *ops) stats(w http.ResponseWriter, r *http.Request) {
 		body["sync"] = st.Sources
 		body["buildState"] = st.BuildState
 		body["buildMode"] = st.BuildMode
+		body["coverage"] = o.coverage(ctx, st.raw)
 	}
 	o.s.WriteJSON(w, r, http.StatusOK, body)
 }
@@ -326,4 +329,46 @@ func nonNil[T any](s []T) []T {
 		return []T{}
 	}
 	return s
+}
+
+// coverageJSON is one entry of the "coverage" block of GET /v1/stats.
+type coverageJSON struct {
+	Source     string           `json:"source"`
+	Upstream   map[string]int64 `json:"upstream"` // null until the source recorded totals
+	UpstreamAt *time.Time       `json:"upstreamAt"`
+	InGraph    map[string]int64 `json:"inGraph"` // null when the graph counts could not be read
+}
+
+// coverageQueries maps a source to its constant in-graph count query. Every
+// column of a result row is one metric; its alias is the metric name.
+var coverageQueries = map[string]string{
+	"nvd":       cypherCoverageVulns,
+	"cwe":       cypherCoverageWeaknesses,
+	"exploitdb": cypherCoverageExploits,
+}
+
+// coverage returns one entry per enabled source, in configured order. It is
+// read per request and never cached. A failing count query leaves inGraph
+// null and does not fail the statistics.
+func (o *ops) coverage(ctx context.Context, srcs []checkpoint.SourceStatus) []coverageJSON {
+	out := make([]coverageJSON, 0, len(srcs))
+	for _, s := range srcs {
+		c := coverageJSON{Source: s.Source, UpstreamAt: tptr(s.UpstreamAt)}
+		if len(s.Upstream) > 0 {
+			c.Upstream = s.Upstream
+		}
+		c.InGraph = map[string]int64{}
+		if q, ok := coverageQueries[s.Source]; ok {
+			rows, err := o.q(ctx, q, nil)
+			if err != nil {
+				c.InGraph = nil
+			} else if len(rows) > 0 {
+				for k, v := range rows[0] {
+					c.InGraph[k] = asInt(v)
+				}
+			}
+		}
+		out = append(out, c)
+	}
+	return out
 }
