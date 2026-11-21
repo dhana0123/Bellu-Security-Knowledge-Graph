@@ -9,6 +9,8 @@ export const LABEL_COLORS: Readonly<Record<string, string>> = {
   Product: '#3e63dd',
   Vendor: '#12a594',
   Domain: '#8b8d98',
+  Repository: '#d6409f',
+  FixCommit: '#c9a227',
 };
 export const FALLBACK_COLOR = '#687076';
 export const LABEL_ORDER: readonly string[] = Object.keys(LABEL_COLORS);
@@ -17,12 +19,33 @@ export const DIM_COLOR = '#262c38';
 
 export const colorFor = (type: string): string => LABEL_COLORS[type] ?? FALLBACK_COLOR;
 
-/** Caption drawn on a node: its label (or key), shortened to max characters. */
-export function captionFor(node: Pick<GraphNode, 'label' | 'key'>, max = 14): string {
+/** The "owner/repo" part of a repository URL, or the input when it is not a URL. */
+export function repoPath(url: string): string {
+  try {
+    const p = new URL(url).pathname.replace(/^\/+|\/+$/g, '');
+    return p || url;
+  } catch {
+    return url;
+  }
+}
+
+/** First 7 characters of a commit sha, taken from the sha property or from the "repoUrl@sha" key. */
+export function shortSha(node: Pick<GraphNode, 'key' | 'properties'>): string {
+  const prop = node.properties?.sha;
+  const sha = typeof prop === 'string' && prop !== '' ? prop : node.key.slice(node.key.lastIndexOf('@') + 1);
+  return sha.slice(0, 7);
+}
+
+/** Caption drawn on a node: its label (or key), shortened to max characters. Repository and FixCommit use their own form. */
+export function captionFor(node: Pick<GraphNode, 'label' | 'key'> & Partial<Pick<GraphNode, 'type' | 'properties'>>, max = 14): string {
+  if (node.type === 'Repository') {
+    const p = repoPath(node.key || node.label);
+    return p.length <= 28 ? p : `${p.slice(0, 27)}…`;
+  }
+  if (node.type === 'FixCommit') return shortSha({ key: node.key, properties: node.properties });
   const text = (node.label || node.key || '').trim();
   return text.length <= max ? text : `${text.slice(0, Math.max(1, max - 1))}…`;
 }
-
 export interface LegendEntry {
   type: string;
   color: string;

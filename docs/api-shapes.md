@@ -93,11 +93,13 @@ Failure with no cached result: 504 on timeout, 500 otherwise.
 
 ## GET /v1/graph/neighborhood
 
-Query: `type` (required: `Vulnerability`, `Exploit`, `Author`, `Weakness`, `Domain`, `Product`, `Vendor`),
+Query: `type` (required: `Vulnerability`, `Exploit`, `Author`, `Weakness`, `Domain`, `Product`, `Vendor`, `Repository`, `FixCommit`),
 `id` (required, 1 to 256 chars; the plain key, CVE ids are upper-cased), `depth` (1 or 2, default 1),
 `limit` (1 to 300, default 100), `nodeTypes` and `relTypes` (comma lists, at most 50 entries,
 known names only; omitted or empty means no restriction).
-`relTypes`: `WRITES, EXPLOITS, EXAMPLE_OF, REFERS_TO, AFFECTS, BELONGS_TO, CHILD_OF`.
+`relTypes`: `WRITES, EXPLOITS, EXAMPLE_OF, REFERS_TO, AFFECTS, BELONGS_TO, CHILD_OF, REFERS_TO_REPOSITORY, HAS_FIX_COMMIT, FIXES`.
+Node types `Repository` (key `url`, properties `host`) and `FixCommit` (key `fcKey`, properties `repoUrl`, `sha`, `url`)
+appear in `/v1/stats`, neighborhood and overview like the other labels.
 
 ```json
 {
@@ -160,7 +162,9 @@ Failure with no cached result: 504 on timeout, 503 when the store is unreachable
 - `GET /v1/vulnerabilities?q=&publishedFrom=&publishedTo=&cvssV3Min=&cvssV3Max=&exploitability=0|1&kev=&cwe=&includeRejected=&limit=&cursor=`
   returns `{"items":[{"cveID","publishedDate","description","v3baseScore","v3baseSeverity","exploitability","kev","sources"}],
   "limit":50,"nextCursor":"..."}` (`nextCursor` absent on the last page). Cursors are opaque and bound to the filters.
-- `GET /v1/vulnerabilities/{id}` returns `{"vulnerability":{...},"sources":[],"provenance":[],"weaknesses":[],"exploits":[],"products":[],"domains":[]}`.
+- `GET /v1/vulnerabilities/{id}` returns `{"vulnerability":{...},"sources":[],"provenance":[],"weaknesses":[],"exploits":[],"products":[],"domains":[],"repositories":[],"fixCommits":[]}`.
+  `repositories` is `[{"url","host"}]` and `fixCommits` is `[{"sha","repoUrl","url"}]` (`url` is the NVD reference
+  URL of the commit); both are empty lists when the CVE has none.
 - `GET /v1/weaknesses/{cweID}`, `/v1/products/{name}`, `/v1/vendors/{name}`, `/v1/exploits/{eid}` return
   `{"weakness"|"product"|"vendor"|"exploit": {...}, ...}`; the three list routes `/v1/{weaknesses|products|vendors}/{key}/vulnerabilities`
   return `{"items":[{"cveID","publishedDate","v3baseScore"}],"limit","nextCursor?"}`.

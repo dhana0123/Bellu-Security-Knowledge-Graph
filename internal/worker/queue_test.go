@@ -187,6 +187,30 @@ func TestChangedSampleLimitReRunsModeJobs(t *testing.T) {
 	}
 }
 
+func TestChangedSampleOrderReRunsModeJobs(t *testing.T) {
+	st := newStore()
+	newHarness(st, nil, sample).q.Run(context.Background()) // stored as order "first"
+	latest := RunOptions{Mode: "sample", Limit: 1000, Order: "latest"}
+	h := newHarness(st, nil, latest)
+	h.q.Run(context.Background())
+	if !reflect.DeepEqual(h.calls, []string{JobNVD, JobExploits}) {
+		t.Fatalf("calls %v", h.calls)
+	}
+	if st.jobs[JobNVD].Order != "latest" {
+		t.Fatalf("order not stored: %+v", st.jobs[JobNVD])
+	}
+	// An empty order is "first", so a record without queueOrder stays done.
+	h = newHarness(st, nil, RunOptions{Mode: "sample", Limit: 1000, Order: "latest"})
+	h.q.Run(context.Background())
+	if len(h.calls) != 0 {
+		t.Fatalf("calls %v", h.calls)
+	}
+	old := newStore()
+	old.jobs[JobNVD] = JobRecord{State: JobSucceeded, Mode: "sample", Limit: 1000}
+	if !Done(Job{ModeSpecific: true}, old.jobs[JobNVD], RunOptions{Mode: "sample", Limit: 1000, Order: "first"}) {
+		t.Fatal("a record without an order must count as first")
+	}
+}
 func TestDelay(t *testing.T) {
 	if _, ok := Delay(0); ok {
 		t.Fatal()

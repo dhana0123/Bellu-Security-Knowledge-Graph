@@ -67,15 +67,24 @@ CALL {
 }
 RETURN [n IN [s] + sel | {id: {nid(n)}, labels: labels(n), props: properties(n)}] AS nodes, edges, truncated`
 
-func nidExpr(v string, keys []string) string {
-	parts := make([]string, len(keys))
-	for i, k := range keys {
-		parts[i] = v + "." + k
+// keyExpr returns the key property of node v by its domain label. A
+// coalesce over all key names is wrong once two labels share a property name
+// (FixCommit has a url property, and url is the Repository key).
+func keyExpr(v string) string {
+	var b strings.Builder
+	b.WriteString("CASE head([l IN labels(" + v + ") WHERE l IN $domainLabels])")
+	for _, l := range model.Labels {
+		if l.Kind == model.Domain && l.Phase <= 1 {
+			fmt.Fprintf(&b, " WHEN '%s' THEN %s.%s", l.Name, v, l.Key)
+		}
 	}
-	return fmt.Sprintf("head([l IN labels(%s) WHERE l IN $domainLabels]) + ':' + toString(coalesce(%s))", v, strings.Join(parts, ", "))
+	b.WriteString(" END")
+	return b.String()
 }
-
-func buildNeighborhood(label, key string, depth int, keys []string) string {
+func nidExpr(v string) string {
+	return fmt.Sprintf("head([l IN labels(%s) WHERE l IN $domainLabels]) + ':' + toString(%s)", v, keyExpr(v))
+}
+func buildNeighborhood(label, key string, depth int) string {
 	q := fmt.Sprintf(nbLayer1, label, key)
 	var tail string
 	if depth == 2 {
@@ -86,22 +95,16 @@ func buildNeighborhood(label, key string, depth int, keys []string) string {
 	}
 	q += tail
 	for _, v := range []string{"a", "b", "x", "y", "n"} {
-		q = strings.ReplaceAll(q, "{nid("+v+")}", nidExpr(v, keys))
+		q = strings.ReplaceAll(q, "{nid("+v+")}", nidExpr(v))
 	}
 	return q
 }
 
 func init() {
-	var keys []string
 	for _, l := range model.Labels {
 		if l.Kind == model.Domain && l.Phase <= 1 {
-			keys = append(keys, l.Key)
-		}
-	}
-	for _, l := range model.Labels {
-		if l.Kind == model.Domain && l.Phase <= 1 {
-			q1 := buildNeighborhood(l.Name, l.Key, 1, keys)
-			q2 := buildNeighborhood(l.Name, l.Key, 2, keys)
+			q1 := buildNeighborhood(l.Name, l.Key, 1)
+			q2 := buildNeighborhood(l.Name, l.Key, 2)
 			neighborhoodQueries[l.Name] = [2]string{q1, q2}
 			allQueries = append(allQueries, q1, q2)
 		}

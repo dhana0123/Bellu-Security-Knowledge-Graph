@@ -148,7 +148,7 @@ func TestSchemaSmoke(t *testing.T) {
 
 	cons := names(t, c, "SHOW CONSTRAINTS YIELD name, type AS extra RETURN name, extra")
 	for _, n := range []string{"UniqueCveID", "UniqueEID", "UniqueAuthorName", "UniquecweID",
-		"UniqueDomainName", "UniqueProductName", "UniqueVendorName"} {
+		"UniqueDomainName", "UniqueProductName", "UniqueVendorName", "UniqueRepositoryUrl", "UniqueFixCommitKey"} {
 		if cons[n] != "UNIQUENESS" {
 			t.Errorf("constraint %s missing or wrong type (%q)", n, cons[n])
 		}

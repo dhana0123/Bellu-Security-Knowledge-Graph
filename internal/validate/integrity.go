@@ -12,14 +12,14 @@ const MaxExamples = 100
 // RejectPrefix starts the description of a rejected CVE record.
 const RejectPrefix = "** REJECT **"
 
-// RequiredConstraint is one VulKG uniqueness constraint (migration V001).
+// RequiredConstraint is one uniqueness constraint (migrations V001, V003).
 type RequiredConstraint struct{ Name, Label, Prop string }
 
 // RequiredIndex is one VulKG index (migration V001). Type is the Neo4j
 // index type: "RANGE" or "FULLTEXT".
 type RequiredIndex struct{ Name, Type string }
 
-// RequiredConstraints lists the seven VulKG uniqueness constraints.
+// RequiredConstraints lists the seven VulKG uniqueness constraints and the two git-link ones.
 var RequiredConstraints = []RequiredConstraint{
 	{"UniqueCveID", "Vulnerability", "cveID"},
 	{"UniqueEID", "Exploit", "eid"},
@@ -28,6 +28,8 @@ var RequiredConstraints = []RequiredConstraint{
 	{"UniqueDomainName", "Domain", "domainName"},
 	{"UniqueProductName", "Product", "productName"},
 	{"UniqueVendorName", "Vendor", "vendorName"},
+	{"UniqueRepositoryUrl", "Repository", "url"},
+	{"UniqueFixCommitKey", "FixCommit", "fcKey"},
 }
 
 // RequiredIndexes lists the four range indexes and the full-text index.
@@ -42,7 +44,7 @@ var RequiredIndexes = []RequiredIndex{
 // EndpointRule gives the required endpoint labels of a relationship type.
 type EndpointRule struct{ Type, From, To string }
 
-// EndpointRules covers the six VulKG relationship types.
+// EndpointRules covers the six VulKG relationship types and the three git-link types.
 var EndpointRules = []EndpointRule{
 	{"WRITES", "Author", "Exploit"},
 	{"EXPLOITS", "Exploit", "Vulnerability"},
@@ -50,6 +52,9 @@ var EndpointRules = []EndpointRule{
 	{"REFERS_TO", "Vulnerability", "Domain"},
 	{"AFFECTS", "Vulnerability", "Product"},
 	{"BELONGS_TO", "Product", "Vendor"},
+	{"REFERS_TO_REPOSITORY", "Vulnerability", "Repository"},
+	{"HAS_FIX_COMMIT", "Repository", "FixCommit"},
+	{"FIXES", "FixCommit", "Vulnerability"},
 }
 
 // CatalogConstraint is a row of SHOW CONSTRAINTS.

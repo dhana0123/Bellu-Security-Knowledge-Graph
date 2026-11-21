@@ -81,7 +81,20 @@
       "vulnStatus": "Analyzed",
       "descriptions": [{"lang": "en", "value": "Fifth."}],
       "metrics": {"cvssMetricV2": [{"type": "Primary", "cvssData": {"version": "2.0", "baseScore": 5.0}}]},
-      "references": []
+      "references": [
+        {"url": "https://github.com/Acme/Widget/commit/0123456789ABCDEF0123456789abcdef01234567"},
+        {"url": "https://github.com/Acme/Widget/commit/0123456789abcdef0123456789abcdef01234567.patch"},
+        {"url": "https://github.com/Acme/Widget/pull/12"},
+        {"url": "https://github.com/Acme/Widget/security/advisories/GHSA-aaaa-bbbb-cccc"},
+        {"url": "https://github.com/Acme/Widget/commit/abc123"},
+        {"url": "https://github.com/advisories/GHSA-aaaa-bbbb-cccc"},
+        {"url": "https://gitlab.com/grp/sub/proj/-/commit/fedcba9876543210fedcba9876543210fedcba98"},
+        {"url": "https://gitlab.com/grp/sub/proj/-/issues/3"},
+        {"url": "https://bitbucket.org/team/repo/commits/1111111111111111111111111111111111111111"},
+        {"url": "https://bitbucket.org/team/repo/commit/2222222222222222222222222222222222222222"},
+        {"url": "https://bitbucket.org/team"},
+        {"url": "https://example.com/Acme/Widget/commit/0123456789abcdef0123456789abcdef01234567"}
+      ]
     }}
   ]
 }

@@ -26,8 +26,8 @@ func TestRegistryIsConsistent(t *testing.T) {
 }
 
 func TestPhaseOneSchema(t *testing.T) {
-	if got := len(DomainLabels(1)); got != 7 {
-		t.Errorf("phase 1 domain labels = %d, want 7 (Requirement 2.5)", got)
+	if got := len(DomainLabels(1)); got != 9 {
+		t.Errorf("phase 1 domain labels = %d, want 9 (Requirement 2.5 plus Repository and FixCommit moved to phase 1)", got)
 	}
 	if r, _ := RelByName("CHILD_OF"); len(r.Identity) != 1 || r.Identity[0] != "viewID" {
 		t.Errorf("CHILD_OF identity = %v", r.Identity)

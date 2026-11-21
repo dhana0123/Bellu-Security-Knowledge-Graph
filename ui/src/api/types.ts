@@ -58,6 +58,15 @@ export interface ProductRef {
   vendors: string[];
 }
 
+export interface RepositoryRef {
+  url: string;
+  host: string;
+}
+export interface FixCommitRef {
+  sha: string;
+  repoUrl: string;
+  url: string;
+}
 export interface CveDetailData {
   vulnerability: Record<string, unknown>;
   sources: string[];
@@ -65,6 +74,8 @@ export interface CveDetailData {
   exploits: ExploitRef[];
   products: ProductRef[];
   domains: string[];
+  repositories: RepositoryRef[];
+  fixCommits: FixCommitRef[];
 }
 
 export interface SourceInfo {

@@ -78,7 +78,9 @@ the full CWE catalog, the first 1000 NVD records, and the matching Exploit-DB
 rows, then reports `ready` and starts no daily schedule. Run `bskg validate`
 and inspect the result. To continue to the full build on the same graph, empty
 `BSKG_SAMPLE_LIMIT` and run `docker compose up -d` again: CWE stays, NVD and
-Exploit-DB run again. A full graph cannot be reduced to a sample; run
+Exploit-DB run again. `BSKG_SAMPLE_ORDER=latest` makes the sample take the most
+recent N NVD records instead of the first N; changing it re-runs NVD and
+Exploit-DB. A full graph cannot be reduced to a sample; run
 `bskg reset --confirm` (planned) first.
 
 ## API keys (planned)

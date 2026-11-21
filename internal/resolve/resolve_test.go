@@ -1,6 +1,7 @@
 package resolve
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/bellu/bskg/internal/source"
@@ -115,5 +116,67 @@ func TestCPE(t *testing.T) {
 		if _, err := CPE(bad); err == nil {
 			t.Errorf("CPE(%q) must fail", bad)
 		}
+	}
+}
+
+func TestNormalizeRepoURL(t *testing.T) {
+	good := map[string]string{
+		"https://github.com/Apache/Struts":                     "https://github.com/Apache/Struts",
+		"HTTP://GitHub.COM:443/o/r.git/":                       "https://github.com/o/r",
+		"https://user:pw@github.com/o/r?tab=x#readme":          "https://github.com/o/r",
+		"git@github.com:o/r.git":                               "https://github.com/o/r",
+		"ssh://git@github.com/o/r":                             "https://github.com/o/r",
+		"ssh://git@gitlab.com:2222/g/s/r.git":                  "https://gitlab.com/g/s/r",
+		"https://gitlab.com/g/s/r/-/commit/abc":                "https://gitlab.com/g/s/r",
+		"https://bitbucket.org/o/r/commits/abc":                "https://bitbucket.org/o/r",
+		"https://github.com/o/r/issues/1":                      "https://github.com/o/r",
+		"  https://github.com/o/r.git.git  ":                   "https://github.com/o/r",
+		"git@bitbucket.org:o/r.git":                            "https://bitbucket.org/o/r",
+		"https://GITLAB.com/group/repo/-/merge_requests/3?x=1": "https://gitlab.com/group/repo",
+	}
+	for in, want := range good {
+		got, err := NormalizeRepoURL(in)
+		if err != nil || got != want {
+			t.Errorf("NormalizeRepoURL(%q) = %q, %v; want %q", in, got, err, want)
+		}
+		if again, err := NormalizeRepoURL(got); err != nil || again != got {
+			t.Errorf("not idempotent: %q -> %q -> %q, %v", in, got, again, err)
+		}
+	}
+	for _, bad := range []string{"", "github.com/o/r", "https://example.com/o/r", "https://github.com/o",
+		"https://github.com/", "ftp://github.com/o/r", "https://github.com/o/.git", "https://gitlab.com/-/x",
+		"https://gitlab.com/g/-/x", "https://www.github.com/o/r", "https://github.com/o/r%20x"} {
+		if got, err := NormalizeRepoURL(bad); err == nil {
+			t.Errorf("NormalizeRepoURL(%q) = %q, must fail", bad, got)
+		}
+	}
+}
+
+func TestFixCommit(t *testing.T) {
+	sha := "0123456789abcdef0123456789abcdef01234567"
+	want := "https://github.com/o/r@" + sha
+	for _, in := range []string{
+		"https://github.com/o/r@" + sha,
+		"git@github.com:o/r.git@" + strings.ToUpper(sha),
+		"HTTPS://GITHUB.COM/o/r/@" + sha,
+	} {
+		k, err := FixCommit(in)
+		if err != nil || k != (Key{"FixCommit", "fcKey", want}) {
+			t.Errorf("FixCommit(%q) = %+v, %v", in, k, err)
+		}
+		if k2, err := Resolve(source.Ref{Kind: source.RefFixCommit, Raw: k.Value}); err != nil || k2 != k {
+			t.Errorf("not idempotent: %+v -> %+v, %v", k, k2, err)
+		}
+	}
+	for _, bad := range []string{"", "https://github.com/o/r", "https://github.com/o/r@abc",
+		"https://github.com/o/r@" + sha + "0", "https://github.com/o/r@" + sha[:39] + "g",
+		"https://example.com/o/r@" + sha, "@" + sha} {
+		if k, err := FixCommit(bad); err == nil {
+			t.Errorf("FixCommit(%q) = %+v, must fail", bad, k)
+		}
+	}
+	k, err := Resolve(source.Ref{Kind: source.RefRepository, Raw: "git@github.com:o/r.git"})
+	if err != nil || k != (Key{"Repository", "url", "https://github.com/o/r"}) {
+		t.Errorf("Resolve repository = %+v, %v", k, err)
 	}
 }

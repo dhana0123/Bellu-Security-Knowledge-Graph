@@ -80,8 +80,11 @@ func runWorker(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "bskg: worker: write build mode: %v\n", err)
 		return 1
 	}
-	opts := worker.RunOptions{Mode: dec.Mode, Limit: dec.Limit}
-	log.Info("worker starting", "buildMode", dec.Mode, "sampleLimit", dec.Limit)
+	opts := worker.RunOptions{Mode: dec.Mode, Limit: dec.Limit, Order: "first"}
+	if dec.Limit > 0 {
+		opts.Order = cfg.SampleOrder // the order only matters for a sample
+	}
+	log.Info("worker starting", "buildMode", dec.Mode, "sampleLimit", dec.Limit, "sampleOrder", opts.Order)
 
 	q := &worker.Queue{
 		Jobs:  buildJobs(c, cfg.BatchSize, log),

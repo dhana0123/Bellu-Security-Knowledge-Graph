@@ -49,6 +49,7 @@ const (
 	EnvStaleAfterHours     = "BSKG_STALE_AFTER_HOURS"
 	EnvChangeRetentionDays = "BSKG_CHANGE_RETENTION_DAYS"
 	EnvSampleLimit         = "BSKG_SAMPLE_LIMIT"
+	EnvSampleOrder         = "BSKG_SAMPLE_ORDER"
 	EnvGitHubToken         = "GITHUB_TOKEN"
 	EnvEPSSThreshold       = "BSKG_EPSS_CHANGE_THRESHOLD"
 )
@@ -80,7 +81,9 @@ type Config struct {
 	StaleAfterHours     int
 	ChangeRetentionDays int
 	// SampleLimit is the Sample_Build record limit; 0 means a full build.
-	SampleLimit         int
+	SampleLimit int
+	// SampleOrder selects the NVD sample: "first" (oldest records) or "latest".
+	SampleOrder         string
 	GitHubToken         Secret
 	EPSSChangeThreshold float64
 }
@@ -194,6 +197,7 @@ func LoadFrom(env Env, scopes ...Scope) (*Config, error) {
 		c.StaleAfterHours = p.intRange(EnvStaleAfterHours, 48, 1, 720)
 		c.ChangeRetentionDays = p.intRange(EnvChangeRetentionDays, 365, 1, 3650)
 		c.SampleLimit = p.sampleLimit()
+		c.SampleOrder = p.sampleOrder()
 		c.EPSSChangeThreshold = p.floatRange(EnvEPSSThreshold, 0.01, 0, 1)
 	}
 
@@ -377,4 +381,23 @@ func (p *parser) sampleLimit() int {
 		return 0
 	}
 	return n
+}
+
+// Sample orders for BSKG_SAMPLE_ORDER.
+const (
+	SampleOrderFirst  = "first"
+	SampleOrderLatest = "latest"
+)
+
+// sampleOrder parses BSKG_SAMPLE_ORDER: "first" (default) or "latest".
+func (p *parser) sampleOrder() string {
+	v := p.raw(EnvSampleOrder)
+	switch v {
+	case "", SampleOrderFirst:
+		return SampleOrderFirst
+	case SampleOrderLatest:
+		return SampleOrderLatest
+	}
+	p.add(EnvSampleOrder, "must be first or latest")
+	return SampleOrderFirst
 }

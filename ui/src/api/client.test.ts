@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { buildQuery, createClient, normalizeOverview, normalizeStats, parseEnvelope } from './client';
+import { buildQuery, createClient, normalizeDetail, normalizeOverview, normalizeStats, parseEnvelope } from './client';
 import { ApiError } from './errors';
 import { clearKey, loadKey, saveKey } from './session';
 
@@ -162,5 +162,30 @@ describe('session', () => {
     clearKey();
     expect(sessionStorage.getItem('bskg.key')).toBeNull();
     expect(loadKey()).toBeNull();
+  });
+});
+
+describe('normalizeDetail repositories and fix commits', () => {
+  it('reads the new arrays', () => {
+    const d = normalizeDetail({
+      vulnerability: { cveID: 'CVE-1' },
+      repositories: [{ url: 'https://github.com/o/r', host: 'github.com' }, 'junk'],
+      fixCommits: [{ sha: 'a'.repeat(40), repoUrl: 'https://github.com/o/r', url: 'https://github.com/o/r/commit/' + 'a'.repeat(40) }],
+    });
+    expect(d.repositories).toEqual([{ url: 'https://github.com/o/r', host: 'github.com' }]);
+    expect(d.fixCommits).toHaveLength(1);
+    expect(d.fixCommits[0]).toMatchObject({ sha: 'a'.repeat(40), repoUrl: 'https://github.com/o/r' });
+  });
+  it('treats absent or malformed fields as empty', () => {
+    expect(normalizeDetail({ vulnerability: {} })).toMatchObject({ repositories: [], fixCommits: [] });
+    expect(normalizeDetail({ repositories: 'x', fixCommits: null })).toMatchObject({ repositories: [], fixCommits: [] });
+  });
+  it('passes unknown labels and relationship types through stats', () => {
+    const s = normalizeStats({
+      labels: [{ label: 'Repository', count: 2 }, { label: 'FixCommit', count: 3 }],
+      relationships: [{ type: 'HAS_FIX_COMMIT', count: 3 }],
+    });
+    expect(s.labelCounts).toEqual([{ name: 'Repository', count: 2 }, { name: 'FixCommit', count: 3 }]);
+    expect(s.relationshipCounts).toEqual([{ name: 'HAS_FIX_COMMIT', count: 3 }]);
   });
 });

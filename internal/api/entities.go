@@ -186,6 +186,8 @@ func (e *Entities) vulnerability(w http.ResponseWriter, r *http.Request) {
 		"exploits":      asList(row["exploits"]),
 		"products":      asList(row["products"]),
 		"domains":       asList(row["domains"]),
+		"repositories":  asList(row["repositories"]),
+		"fixCommits":    asList(row["fixCommits"]),
 	})
 }
 

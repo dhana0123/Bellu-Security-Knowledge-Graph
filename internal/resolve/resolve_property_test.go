@@ -97,3 +97,32 @@ func TestPropertyCPERoundTrip(t *testing.T) {
 		}
 	})
 }
+
+// Feature: bellu-security-knowledge-graph, Property 2b: repository URL and fix-commit key idempotence
+// **Validates: Requirement 9.17**
+func TestPropertyRepoURLIdempotence(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		raw := rapid.OneOf(
+			rapid.String(),
+			rapid.StringMatching(`(?i:https?|ssh|git)://([a-z]{1,5}(:[a-z]{1,5})?@)?(?i:github\.com|gitlab\.com|bitbucket\.org)(:\d{1,4})?(/[A-Za-z0-9._~-]{0,6}){0,6}(\.git)*/?(\?[a-z=]{0,5})?(#[a-z]{0,4})?`),
+			rapid.StringMatching(`[a-z]{1,4}@(github\.com|gitlab\.com|bitbucket\.org):[A-Za-z0-9._-]{1,6}/[A-Za-z0-9._-]{1,6}(\.git)?`),
+		).Draw(t, "raw")
+		n, err := NormalizeRepoURL(raw)
+		if err != nil {
+			return
+		}
+		n2, err := NormalizeRepoURL(n)
+		if err != nil || n2 != n {
+			t.Fatalf("%q -> %q -> %q, %v", raw, n, n2, err)
+		}
+		sha := rapid.StringMatching(`[0-9a-fA-F]{40}`).Draw(t, "sha")
+		k, err := FixCommit(raw + "@" + sha)
+		if err != nil {
+			return
+		}
+		k2, err := Resolve(source.Ref{Kind: source.RefFixCommit, Raw: k.Value})
+		if err != nil || k2 != k || k.Value != n+"@"+strings.ToLower(sha) {
+			t.Fatalf("%q -> %+v -> %+v, %v", raw, k, k2, err)
+		}
+	})
+}

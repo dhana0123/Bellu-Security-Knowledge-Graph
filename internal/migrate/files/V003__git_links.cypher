@@ -1,0 +1,3 @@
+CREATE CONSTRAINT UniqueRepositoryUrl IF NOT EXISTS FOR (r:Repository) REQUIRE r.url IS UNIQUE
+;
+CREATE CONSTRAINT UniqueFixCommitKey IF NOT EXISTS FOR (f:FixCommit) REQUIRE f.fcKey IS UNIQUE

@@ -14,7 +14,7 @@ describe('colour and caption mapping', () => {
     for (const t of ['Vulnerability', 'Exploit', 'Author', 'Weakness', 'Product', 'Vendor', 'Domain']) {
       expect(colorFor(t)).toBe(LABEL_COLORS[t]);
     }
-    expect(new Set(Object.values(LABEL_COLORS)).size).toBe(7);
+    expect(new Set(Object.values(LABEL_COLORS)).size).toBe(9);
     expect(colorFor('Mystery')).toBe(FALLBACK_COLOR);
   });
   it('shortens long captions and falls back to the key', () => {
@@ -116,5 +116,29 @@ describe('graph entry and severity', () => {
     expect([9.8, 9, 7, 4, 0.1, 0, null, undefined].map(severityOf)).toEqual([
       'CRITICAL', 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'UNSCORED', 'UNSCORED', 'UNSCORED',
     ]);
+  });
+});
+
+describe('repository and fix commit styling', () => {
+  const sha = 'a'.repeat(7) + 'b'.repeat(33);
+  it('has distinct colours that are not the fallback', () => {
+    const c = [colorFor('Repository'), colorFor('FixCommit')];
+    expect(c).not.toContain(FALLBACK_COLOR);
+    expect(new Set([...c, ...Object.entries(LABEL_COLORS).filter(([k]) => !['Repository', 'FixCommit'].includes(k)).map(([, v]) => v)]).size).toBe(
+      Object.keys(LABEL_COLORS).length,
+    );
+  });
+  it('captions a repository as owner/repo', () => {
+    expect(captionFor({ type: 'Repository', label: 'x', key: 'https://github.com/apache/logging-log4j2' })).toBe('apache/logging-log4j2');
+    expect(captionFor({ type: 'Repository', label: 'x', key: 'https://gitlab.com/o/r/' })).toBe('o/r');
+  });
+  it('captions a fix commit with 7 sha characters', () => {
+    const key = `https://github.com/o/r@${sha}`;
+    expect(captionFor({ type: 'FixCommit', label: 'l', key })).toBe('aaaaaaa');
+    expect(captionFor({ type: 'FixCommit', label: 'l', key: 'whatever', properties: { sha } })).toBe('aaaaaaa');
+  });
+  it('lists the new labels in the legend', () => {
+    const l = legendCounts([{ type: 'FixCommit' }, { type: 'Repository' }, { type: 'Vulnerability' }], new Set());
+    expect(l.map((e) => e.type)).toEqual(['Vulnerability', 'Repository', 'FixCommit']);
   });
 });

@@ -290,10 +290,10 @@ func TestStatsEndpoint(t *testing.T) {
 	if len(sev) != 6 || sev[5].(map[string]any)["severity"] != "CRITICAL" || sev[5].(map[string]any)["count"] != float64(2) {
 		t.Fatalf("sev %v", sev)
 	}
-	if l, _ := body["labels"].([]any); len(l) != 7 || l[0].(map[string]any)["label"] != "Vulnerability" || l[0].(map[string]any)["count"] != float64(7) {
+	if l, _ := body["labels"].([]any); len(l) != 9 || l[0].(map[string]any)["label"] != "Vulnerability" || l[0].(map[string]any)["count"] != float64(7) {
 		t.Fatalf("labels %v", body["labels"])
 	}
-	if r, _ := body["relationships"].([]any); len(r) != 7 {
+	if r, _ := body["relationships"].([]any); len(r) != 10 {
 		t.Fatalf("rels %v", r)
 	}
 	// A second request is served from the cache: no stats queries run again.
@@ -383,7 +383,7 @@ func TestNeighborhoodValidation(t *testing.T) {
 		"type=Vendor&id=x&limit=a":                          "limit",
 		"type=Vendor&id=x&nodeTypes=Product,Bogus":          "nodeTypes",
 		"type=Vendor&id=x&relTypes=AFFECTS,Bogus":           "relTypes",
-		"type=Vendor&id=x&relTypes=FIXES":                   "relTypes",
+		"type=Vendor&id=x&relTypes=AFFECTS_PACKAGE":         "relTypes",
 	}
 	many := make([]string, 51)
 	for i := range many {
@@ -501,5 +501,14 @@ func TestNeighborhoodQueriesCoverEveryDomainLabel(t *testing.T) {
 		if !ok || qs[0] == qs[1] || !strings.Contains(qs[0], "(s:"+l+" {") {
 			t.Errorf("%s: %v", l, ok)
 		}
+	}
+}
+
+func TestKeyExprUsesLabelSpecificKey(t *testing.T) {
+	// FixCommit has a url property and url is the Repository key, so the node
+	// id must pick the key by label instead of coalescing key names.
+	q := nidExpr("n")
+	if strings.Contains(q, "coalesce") || !strings.Contains(q, "WHEN 'FixCommit' THEN n.fcKey") || !strings.Contains(q, "WHEN 'Repository' THEN n.url") {
+		t.Errorf("nidExpr = %s", q)
 	}
 }

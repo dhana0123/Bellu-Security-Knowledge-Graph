@@ -188,6 +188,69 @@ func TestSampleSpansPagesAscending(t *testing.T) {
 	}
 }
 
+func TestSampleLatestReadsTheLastRecords(t *testing.T) {
+	f := newFake(t)
+	a, _ := setup(t, f, Options{})
+	it, err := a.Fetch(context.Background(), source.Checkpoint{Watermark: t0}, source.RunOptions{SampleLimit: 2, SampleOrder: source.SampleLatest})
+	if err != nil {
+		t.Fatal(err)
+	}
+	recs, err := drain(t, it)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := ids(recs); !reflect.DeepEqual(got, []string{"CVE-2021-0004", "CVE-2021-0005"}) {
+		t.Fatalf("ids = %v", got)
+	}
+	want := []string{"resultsPerPage=1&startIndex=0", "resultsPerPage=2&startIndex=3"}
+	if !reflect.DeepEqual(f.queries(), want) {
+		t.Fatalf("queries = %v, want %v", f.queries(), want)
+	}
+	for _, r := range recs {
+		if r.Cursor != (source.Cursor{}) {
+			t.Fatalf("sample record has a cursor: %+v", r.Cursor)
+		}
+	}
+}
+
+func TestSampleLatestLargerThanTotalStartsAtZero(t *testing.T) {
+	f := newFake(t)
+	a, _ := setup(t, f, Options{})
+	it, err := a.Fetch(context.Background(), source.Checkpoint{}, source.RunOptions{SampleLimit: 1000, SampleOrder: source.SampleLatest})
+	if err != nil {
+		t.Fatal(err)
+	}
+	recs, err := drain(t, it)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"resultsPerPage=1&startIndex=0", "resultsPerPage=1000&startIndex=0"}
+	if len(ids(recs)) != 5 || !reflect.DeepEqual(f.queries(), want) {
+		t.Fatalf("records=%d queries=%v", len(ids(recs)), f.queries())
+	}
+}
+
+func TestSampleLatestSpansPages(t *testing.T) {
+	f := newFake(t)
+	a, _ := setup(t, f, Options{})
+	// Page size min(2000, 3) = 3 and N = 3 give one page from index 2.
+	it, _ := a.Fetch(context.Background(), source.Checkpoint{}, source.RunOptions{SampleLimit: 3, SampleOrder: source.SampleLatest})
+	recs, _ := drain(t, it)
+	if got := ids(recs); !reflect.DeepEqual(got, []string{"CVE-2021-0003", "CVE-2021-0004", "CVE-2021-0005"}) {
+		t.Fatalf("ids = %v", got)
+	}
+}
+
+func TestSampleFirstIgnoresProbe(t *testing.T) {
+	f := newFake(t)
+	a, _ := setup(t, f, Options{})
+	it, _ := a.Fetch(context.Background(), source.Checkpoint{}, source.RunOptions{SampleLimit: 2, SampleOrder: source.SampleFirst})
+	drain(t, it)
+	if want := []string{"resultsPerPage=2&startIndex=0"}; !reflect.DeepEqual(f.queries(), want) {
+		t.Fatalf("queries = %v", f.queries())
+	}
+}
+
 func TestFullCatchUpPagesAndCursors(t *testing.T) {
 	f := newFake(t)
 	a, _ := setup(t, f, Options{PageSize: 2, APIKey: "k-123", Version: "9.9"})
@@ -473,7 +536,7 @@ func TestNormalizeFullRecord(t *testing.T) {
 	if n.Missing {
 		t.Error("a complete record is not Missing")
 	}
-	if n.Anchor == nil || n.Anchor.Raw != "CVE-2021-0001" || len(n.Owned) != 3 {
+	if n.Anchor == nil || n.Anchor.Raw != "CVE-2021-0001" || len(n.Owned) != 4 {
 		t.Errorf("anchor/owned = %v %v", n.Anchor, n.Owned)
 	}
 }
@@ -555,5 +618,108 @@ func TestNormalizeErrorsAndMarker(t *testing.T) {
 func TestName(t *testing.T) {
 	if !source.ValidName(New(Options{}).Name()) {
 		t.Fatal("invalid adapter name")
+	}
+}
+
+func TestNormalizeGitLinks(t *testing.T) {
+	n := normalizeFixture(t, 4)
+	const gh = "https://github.com/Acme/Widget"
+	const sha = "0123456789abcdef0123456789abcdef01234567"
+	var repos []string
+	for _, r := range rels(n, "REFERS_TO_REPOSITORY") {
+		if r.From.Kind != source.RefCVE || r.From.Raw != "CVE-2021-0005" || r.To.Kind != source.RefRepository {
+			t.Errorf("bad REFERS_TO_REPOSITORY %+v", r)
+		}
+		repos = append(repos, r.To.Raw)
+	}
+	wantRepos := []string{gh, "https://gitlab.com/grp/sub/proj", "https://bitbucket.org/team/repo"}
+	if !reflect.DeepEqual(repos, wantRepos) {
+		t.Errorf("repositories = %v, want %v", repos, wantRepos)
+	}
+	fixes := map[string]source.Entity{}
+	for _, e := range n.Entities {
+		switch e.Ref.Kind {
+		case source.RefRepository:
+			if e.Props["host"] == "" || len(e.Props) != 1 {
+				t.Errorf("repository props %v", e.Props)
+			}
+		case source.RefFixCommit:
+			fixes[e.Ref.Raw] = e
+		}
+	}
+	if len(fixes) != 4 {
+		t.Fatalf("fix commits = %v", fixes)
+	}
+	e := fixes[gh+"@"+sha]
+	if e.Props["repoUrl"] != gh || e.Props["sha"] != sha ||
+		e.Props["url"] != "https://github.com/Acme/Widget/commit/0123456789ABCDEF0123456789abcdef01234567" {
+		t.Errorf("github fix commit %v", e.Props)
+	}
+	if fixes["https://gitlab.com/grp/sub/proj@fedcba9876543210fedcba9876543210fedcba98"].Props == nil ||
+		fixes["https://bitbucket.org/team/repo@"+strings.Repeat("1", 40)].Props == nil ||
+		fixes["https://bitbucket.org/team/repo@"+strings.Repeat("2", 40)].Props == nil {
+		t.Errorf("missing fix commits: %v", fixes)
+	}
+	if len(rels(n, "HAS_FIX_COMMIT")) != 4 || len(rels(n, "FIXES")) != 4 {
+		t.Errorf("HAS_FIX_COMMIT=%d FIXES=%d", len(rels(n, "HAS_FIX_COMMIT")), len(rels(n, "FIXES")))
+	}
+	for _, r := range rels(n, "FIXES") {
+		if r.From.Kind != source.RefFixCommit || r.To.Raw != "CVE-2021-0005" {
+			t.Errorf("bad FIXES %+v", r)
+		}
+	}
+	for _, r := range rels(n, "HAS_FIX_COMMIT") {
+		if r.From.Kind != source.RefRepository || r.To.Kind != source.RefFixCommit || !strings.HasPrefix(r.To.Raw, r.From.Raw+"@") {
+			t.Errorf("bad HAS_FIX_COMMIT %+v", r)
+		}
+	}
+	if len(n.Notes) != 1 || n.Notes[0].Kind != "warning" || !strings.Contains(n.Notes[0].Text, "abc123") {
+		t.Errorf("notes = %+v", n.Notes)
+	}
+	owned := map[string]bool{}
+	for _, o := range n.Owned {
+		owned[o.Type] = true
+	}
+	if !owned["REFERS_TO_REPOSITORY"] || owned["FIXES"] || owned["HAS_FIX_COMMIT"] {
+		t.Errorf("owned = %v", n.Owned)
+	}
+	// Domains are still emitted for every reference host.
+	if len(rels(n, "REFERS_TO")) != 4 {
+		t.Errorf("REFERS_TO = %+v", rels(n, "REFERS_TO"))
+	}
+}
+
+func TestParseGitLink(t *testing.T) {
+	sha := strings.Repeat("a", 40)
+	cases := []struct {
+		in   string
+		want gitLink
+		ok   bool
+	}{
+		{"https://github.com/o/r", gitLink{repo: "https://github.com/o/r"}, true},
+		{"https://github.com/o/r.git", gitLink{repo: "https://github.com/o/r"}, true},
+		{"https://github.com/o/r/blob/main/x.go", gitLink{repo: "https://github.com/o/r"}, true},
+		{"https://github.com/o/r/releases/tag/v1", gitLink{repo: "https://github.com/o/r"}, true},
+		{"https://github.com/o/r/commit/" + sha, gitLink{repo: "https://github.com/o/r", sha: sha}, true},
+		{"https://github.com/o/r/commit/" + sha + ".diff", gitLink{repo: "https://github.com/o/r", sha: sha}, true},
+		{"https://github.com/o/r/commit/abc", gitLink{repo: "https://github.com/o/r", badCommit: true}, true},
+		{"https://github.com/o/r/pull/1/commits/" + sha, gitLink{repo: "https://github.com/o/r"}, true},
+		{"https://gitlab.com/g/r/-/commit/" + sha, gitLink{repo: "https://gitlab.com/g/r", sha: sha}, true},
+		{"https://gitlab.com/g/r/commit/" + sha, gitLink{repo: "https://gitlab.com/g/r", sha: sha}, true},
+		{"https://gitlab.com/g/s/r", gitLink{repo: "https://gitlab.com/g/s/r"}, true},
+		{"https://gitlab.com/g/r/issues/4", gitLink{repo: "https://gitlab.com/g/r"}, true},
+		{"https://bitbucket.org/o/r/commits/" + sha, gitLink{repo: "https://bitbucket.org/o/r", sha: sha}, true},
+		{"https://bitbucket.org/o/r/commits/zz", gitLink{repo: "https://bitbucket.org/o/r", badCommit: true}, true},
+		{"https://github.com/o", gitLink{}, false},
+		{"https://gist.github.com/o/r", gitLink{}, false},
+		{"https://example.com/o/r", gitLink{}, false},
+		{"ftp://github.com/o/r", gitLink{}, false},
+		{"not a url", gitLink{}, false},
+	}
+	for _, c := range cases {
+		got, ok := parseGitLink(c.in)
+		if ok != c.ok || got != c.want {
+			t.Errorf("parseGitLink(%q) = %+v, %v; want %+v, %v", c.in, got, ok, c.want, c.ok)
+		}
 	}
 }

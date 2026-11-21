@@ -51,6 +51,8 @@ var dupQueries = []dupQuery{
 	{"Domain", "domainName", `MATCH (n:Domain) WITH n.domainName AS k, count(*) AS c WHERE c > 1 RETURN toString(k), c ORDER BY c DESC, toString(k) LIMIT 100`},
 	{"Product", "productName", `MATCH (n:Product) WITH n.productName AS k, count(*) AS c WHERE c > 1 RETURN toString(k), c ORDER BY c DESC, toString(k) LIMIT 100`},
 	{"Vendor", "vendorName", `MATCH (n:Vendor) WITH n.vendorName AS k, count(*) AS c WHERE c > 1 RETURN toString(k), c ORDER BY c DESC, toString(k) LIMIT 100`},
+	{"Repository", "url", `MATCH (n:Repository) WITH n.url AS k, count(*) AS c WHERE c > 1 RETURN toString(k), c ORDER BY c DESC, toString(k) LIMIT 100`},
+	{"FixCommit", "fcKey", `MATCH (n:FixCommit) WITH n.fcKey AS k, count(*) AS c WHERE c > 1 RETURN toString(k), c ORDER BY c DESC, toString(k) LIMIT 100`},
 }
 
 type endpointQuery struct {
@@ -77,6 +79,15 @@ var endpointQueries = []endpointQuery{
 	{EndpointRules[5],
 		`MATCH (a)-[r:BELONGS_TO]->(b) WHERE NOT (a:Product AND b:Vendor) RETURN count(r)`,
 		`MATCH (a)-[r:BELONGS_TO]->(b) WHERE NOT (a:Product AND b:Vendor) RETURN elementId(r), labels(a), labels(b) ORDER BY elementId(r) LIMIT 100`},
+	{EndpointRules[6],
+		`MATCH (a)-[r:REFERS_TO_REPOSITORY]->(b) WHERE NOT (a:Vulnerability AND b:Repository) RETURN count(r)`,
+		`MATCH (a)-[r:REFERS_TO_REPOSITORY]->(b) WHERE NOT (a:Vulnerability AND b:Repository) RETURN elementId(r), labels(a), labels(b) ORDER BY elementId(r) LIMIT 100`},
+	{EndpointRules[7],
+		`MATCH (a)-[r:HAS_FIX_COMMIT]->(b) WHERE NOT (a:Repository AND b:FixCommit) RETURN count(r)`,
+		`MATCH (a)-[r:HAS_FIX_COMMIT]->(b) WHERE NOT (a:Repository AND b:FixCommit) RETURN elementId(r), labels(a), labels(b) ORDER BY elementId(r) LIMIT 100`},
+	{EndpointRules[8],
+		`MATCH (a)-[r:FIXES]->(b) WHERE NOT (a:FixCommit AND b:Vulnerability) RETURN count(r)`,
+		`MATCH (a)-[r:FIXES]->(b) WHERE NOT (a:FixCommit AND b:Vulnerability) RETURN elementId(r), labels(a), labels(b) ORDER BY elementId(r) LIMIT 100`},
 }
 
 const (

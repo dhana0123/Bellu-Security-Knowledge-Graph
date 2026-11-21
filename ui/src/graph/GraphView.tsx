@@ -4,6 +4,7 @@ import { ApiError } from '../api/errors';
 import { useAuth } from '../auth/AuthContext';
 import { btn, btnPrimary, card, link, muted, td } from '../common/classes';
 import { ErrorMessage, Loading } from '../common/ErrorMessage';
+import { ExternalLink } from '../common/ExternalLink';
 import { graphPath } from '../cve/links';
 import { newGraph, runLayout, syncGraph } from './build';
 import { CveShortcut } from './GraphEntry';
@@ -33,6 +34,13 @@ interface OverviewInfo {
   truncated: boolean;
   total: { nodes: number; relationships: number };
 }
+
+type Sel = { key: string; properties?: Record<string, unknown> };
+const prop = (n: Sel, k: string): string => (typeof n.properties?.[k] === 'string' ? (n.properties[k] as string) : '');
+const fixSha = (n: Sel): string => prop(n, 'sha') || n.key.slice(n.key.lastIndexOf('@') + 1);
+const fixRepo = (n: Sel): string => prop(n, 'repoUrl') || (n.key.includes('@') ? n.key.slice(0, n.key.lastIndexOf('@')) : '');
+/** The commit page URL, falling back to the repository URL. */
+const fixUrl = (n: Sel): string => prop(n, 'url') || fixRepo(n);
 
 function show(v: unknown): string {
   if (v === null || v === undefined) return '';
@@ -345,6 +353,20 @@ export function GraphView() {
                   </Link>
                 )}
               </div>
+              {sel.type === 'Repository' && (
+                <p className="mb-3 text-sm">
+                  <ExternalLink href={sel.key}>Open repository</ExternalLink>
+                </p>
+              )}
+              {sel.type === 'FixCommit' && (
+                <div className="mb-3 space-y-1 text-sm text-slate-300">
+                  <p className="break-all">SHA: {fixSha(sel)}</p>
+                  <p className="break-all">Repository: {fixRepo(sel)}</p>
+                  <p>
+                    <ExternalLink href={fixUrl(sel)}>Open commit</ExternalLink>
+                  </p>
+                </div>
+              )}
               {props.length > 0 && (
                 <table className="w-full text-sm" aria-label="Properties">
                   <tbody>

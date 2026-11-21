@@ -133,7 +133,7 @@ func runSync(args []string, stdout, stderr io.Writer) int {
 			continue
 		}
 		res, err := pipeline.Run(ctx, store, ad, pipeline.Options{
-			SampleLimit: dec.Limit, BatchSize: cfg.BatchSize, Since: sinceT,
+			SampleLimit: dec.Limit, SampleOrder: sampleOrder(dec.Limit, cfg.SampleOrder), BatchSize: cfg.BatchSize, Since: sinceT,
 			ReplayDeadLetters: *replay, Log: log,
 		})
 		switch {
@@ -243,7 +243,7 @@ func syncJob(reg *pipeline.Registry, store pipeline.Store, source string, batch 
 		}
 		deadline := time.Now().Add(lockWait)
 		for {
-			_, err := pipeline.Run(ctx, store, ad, pipeline.Options{SampleLimit: o.Limit, BatchSize: batch, Log: log})
+			_, err := pipeline.Run(ctx, store, ad, pipeline.Options{SampleLimit: o.Limit, SampleOrder: o.Order, BatchSize: batch, Log: log})
 			// A lock left by a crashed process expires 10 minutes after its last
 			// renewal, so the worker waits for it before it fails the job.
 			if !errors.Is(err, checkpoint.ErrLocked) || time.Now().Add(lockPoll).After(deadline) {
@@ -266,3 +266,11 @@ var (
 	lockWait = 11 * time.Minute
 	lockPoll = 15 * time.Second
 )
+
+// sampleOrder returns the configured order for a sample and "first" otherwise.
+func sampleOrder(limit int, order string) string {
+	if limit > 0 && order != "" {
+		return order
+	}
+	return "first"
+}

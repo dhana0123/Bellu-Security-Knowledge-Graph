@@ -4,10 +4,12 @@ import type {
   CountEntry,
   CveDetailData,
   ExploitRef,
+  FixCommitRef,
   GraphEnvelope,
   GraphOverview,
   Neighborhood,
   ProductRef,
+  RepositoryRef,
   SearchFilters,
   SearchPage,
   SourceInfo,
@@ -144,6 +146,14 @@ export function normalizeDetail(body: Json): CveDetailData {
         }),
       ),
     domains: strList(body.domains),
+    repositories: arr(body.repositories)
+      .filter(isObj)
+      .map((o): RepositoryRef => ({ url: str(o.url), host: str(o.host) }))
+      .filter((r) => r.url !== ''),
+    fixCommits: arr(body.fixCommits)
+      .filter(isObj)
+      .map((o): FixCommitRef => ({ sha: str(o.sha), repoUrl: str(o.repoUrl), url: str(o.url) }))
+      .filter((c) => c.sha !== ''),
   };
 }
 

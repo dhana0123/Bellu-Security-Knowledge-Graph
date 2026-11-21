@@ -151,7 +151,7 @@ func (a *Adapter) Normalize(rec source.Record) (source.Normalized, error) {
 
 	n.Entities = append(n.Entities, source.Entity{Ref: vref, Props: props, Clear: clear})
 	n.Anchor = &source.Ref{Kind: source.RefCVE, Raw: c.ID}
-	n.Owned = []source.OwnedRel{{Type: "EXAMPLE_OF"}, {Type: "REFERS_TO"}, {Type: "AFFECTS"}}
+	n.Owned = []source.OwnedRel{{Type: "EXAMPLE_OF"}, {Type: "REFERS_TO"}, {Type: "REFERS_TO_REPOSITORY"}, {Type: "AFFECTS"}}
 
 	// Weaknesses: never created here. NVD-CWE-* values are unresolved.
 	seenCWE := map[string]bool{}
@@ -188,6 +188,13 @@ func (a *Adapter) Normalize(rec source.Record) (source.Normalized, error) {
 		}
 	}
 
+	if c.References != nil {
+		urls := make([]string, 0, len(*c.References))
+		for _, r := range *c.References {
+			urls = append(urls, r.URL)
+		}
+		gitLinks(c.ID, vref, urls, &n)
+	}
 	n.Entities, n.Rels, n.Notes = appendAffects(c, vref, n.Entities, n.Rels, n.Notes)
 	return n, nil
 }

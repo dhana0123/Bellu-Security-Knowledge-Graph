@@ -97,6 +97,26 @@ func TestSampleLimit(t *testing.T) {
 		}
 	}
 }
+func TestSampleOrder(t *testing.T) {
+	for _, tc := range []struct {
+		v, want string
+		ok      bool
+	}{{"", "first", true}, {"first", "first", true}, {"latest", "latest", true}, {" latest ", "latest", true},
+		{"newest", "", false}, {"LATEST", "", false}} {
+		m := map[string]string{EnvNeo4jPassword: "p", EnvSampleOrder: tc.v}
+		c, err := LoadFrom(env(m, nil), ScopeWorker)
+		if (err == nil) != tc.ok {
+			t.Errorf("order %q: err=%v", tc.v, err)
+			continue
+		}
+		if tc.ok && c.SampleOrder != tc.want {
+			t.Errorf("order %q: got %q", tc.v, c.SampleOrder)
+		}
+		if !tc.ok && !strings.Contains(err.Error(), EnvSampleOrder) {
+			t.Errorf("order %q: error does not name the setting: %v", tc.v, err)
+		}
+	}
+}
 func TestCollectsAllErrorsWithoutValues(t *testing.T) {
 	m := map[string]string{
 		EnvBatchSize:           "abc-secretish",

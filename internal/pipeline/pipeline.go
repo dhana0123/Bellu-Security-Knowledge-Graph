@@ -34,6 +34,8 @@ type Options struct {
 	// SampleLimit > 0 is a Sample_Build: the pipeline writes no checkpoint
 	// and no version (Requirement 12.7).
 	SampleLimit int
+	// SampleOrder is "first" or "latest" (empty means first); see source.RunOptions.
+	SampleOrder string
 	// BatchSize is 1 to 10000; 0 means DefaultBatchSize.
 	BatchSize int
 	// Since, when set, is the starting watermark of this run; the stored
@@ -172,7 +174,7 @@ func (r *runner) execute(ctx context.Context) error {
 	if !r.o.Since.IsZero() {
 		sc = source.Checkpoint{Watermark: r.o.Since}
 	}
-	it, err := r.ad.Fetch(ctx, sc, source.RunOptions{SampleLimit: r.o.SampleLimit})
+	it, err := r.ad.Fetch(ctx, sc, source.RunOptions{SampleLimit: r.o.SampleLimit, SampleOrder: r.o.SampleOrder})
 	if err != nil {
 		return fmt.Errorf("fetch: %w", err)
 	}

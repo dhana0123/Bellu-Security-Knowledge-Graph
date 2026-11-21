@@ -33,7 +33,9 @@ RETURN properties(v) AS props,
       productName: p.productName, productType: p.productType,
       numOfVersion: r.numOfVersion, affectedVersion: r.affectedVersion,
       vendors: [(p)-[:BELONGS_TO]->(vd:Vendor) | vd.vendorName]}] AS products,
-  [(v)-[:REFERS_TO]->(d:Domain) | d.domainName] AS domains`
+  [(v)-[:REFERS_TO]->(d:Domain) | d.domainName] AS domains,
+  [(v)-[:REFERS_TO_REPOSITORY]->(rp:Repository) | {url: rp.url, host: rp.host}] AS repositories,
+  [(f:FixCommit)-[:FIXES]->(v) | {sha: f.sha, repoUrl: f.repoUrl, url: f.url}] AS fixCommits`
 
 	// Vulnerability existence and sources for history and as-of routes.
 	cypherVulnerabilityExists = `MATCH (v:Vulnerability {cveID: $id}) RETURN v.cveID AS cveID, properties(v) AS props`

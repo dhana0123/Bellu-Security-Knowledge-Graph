@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -34,7 +33,6 @@ var (
 	overviewNodeQueries  = map[string]string{} // all nodes of one label
 	overviewPropsQueries = map[string]string{} // nodes of one label by key list
 	overviewEdgeQueries  = map[string]string{} // relationships of one type between key lists
-	overviewDomainKeys   []string
 )
 
 // cypherOverviewSeeds ranks Vulnerabilities (rule: seedLess). A boolean sorts
@@ -53,11 +51,6 @@ LIMIT $limit`
 var cypherOverviewNeighbours string
 
 func init() {
-	for _, l := range model.Labels {
-		if l.Kind == model.Domain && l.Phase <= 1 {
-			overviewDomainKeys = append(overviewDomainKeys, l.Key)
-		}
-	}
 	for _, l := range model.Labels {
 		if l.Kind != model.Domain || l.Phase > 1 {
 			continue
@@ -80,13 +73,7 @@ LIMIT $limit`, r.From, r.Name, r.To, from.Key, to.Key)
 		overviewEdgeQueries[r.Name] = q
 		allQueries = append(allQueries, q)
 	}
-	keyRaw := func(v string) string {
-		parts := make([]string, len(overviewDomainKeys))
-		for i, k := range overviewDomainKeys {
-			parts[i] = v + "." + k
-		}
-		return "coalesce(" + strings.Join(parts, ", ") + ")"
-	}
+	keyRaw := keyExpr
 	cypherOverviewNeighbours = fmt.Sprintf(`
 UNWIND $cves AS cve
 MATCH (v:Vulnerability {cveID: cve})

@@ -30,7 +30,17 @@ func ValidName(name string) bool { return nameRe.MatchString(name) }
 type RunOptions struct {
 	// SampleLimit is 0 for a full build and N >= 1 for a Sample_Build.
 	SampleLimit int
+	// SampleOrder is "first" (default) or "latest". With "latest" the NVD
+	// adapter reads the most recent SampleLimit records. Used only when
+	// SampleLimit > 0.
+	SampleOrder string
 }
+
+// Sample orders of RunOptions.SampleOrder.
+const (
+	SampleFirst  = "first"
+	SampleLatest = "latest"
+)
 
 // Checkpoint is the stored position of a source. The zero value means never
 // synced.
@@ -80,6 +90,10 @@ const (
 	RefDomain  RefKind = "domain"
 	RefExploit RefKind = "exploit"
 	RefAuthor  RefKind = "author"
+	// RefRepository is a git repository URL; resolves to the Repository.
+	RefRepository RefKind = "repository"
+	// RefFixCommit is "<repo URL>@<40 hex sha>"; resolves to the FixCommit.
+	RefFixCommit RefKind = "fixcommit"
 )
 
 // Ref points at a node by its raw source form. The resolver turns it into a

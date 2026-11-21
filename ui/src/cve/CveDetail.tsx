@@ -2,8 +2,10 @@ import { Link, useParams } from 'react-router';
 import { useAuth } from '../auth/AuthContext';
 import { card, h1, h2, link, muted, td, th } from '../common/classes';
 import { ErrorMessage, Loading } from '../common/ErrorMessage';
+import { ExternalLink } from '../common/ExternalLink';
 import { SeverityBadge } from '../common/SeverityBadge';
 import { useRequest } from '../common/useRequest';
+import { repoPath } from '../graph/style';
 import { graphPath } from './links';
 
 function show(v: unknown): string {
@@ -113,6 +115,32 @@ export function CveDetail() {
             </ul>
           )}
 
+          <h2 className={h2}>Repositories</h2>
+          {d.repositories.length === 0 ? <p className={muted}>None</p> : (
+            <ul className="list-inside list-disc space-y-1">
+              {d.repositories.map((r) => (
+                <li key={r.url}>
+                  <ExternalLink href={r.url}>{repoPath(r.url)}</ExternalLink>
+                  {r.host ? ` (${r.host})` : ''}
+                  {' · '}
+                  <Link className={link} to={graphPath('Repository', r.url)}>Open in graph</Link>
+                </li>
+              ))}
+            </ul>
+          )}
+          <h2 className={h2}>Fix commits</h2>
+          {d.fixCommits.length === 0 ? <p className={muted}>None</p> : (
+            <ul className="list-inside list-disc space-y-1">
+              {d.fixCommits.map((c) => (
+                <li key={`${c.repoUrl}@${c.sha}`}>
+                  <ExternalLink href={c.url || c.repoUrl}>{c.sha.slice(0, 7)}</ExternalLink>
+                  {c.repoUrl ? ` in ${repoPath(c.repoUrl)}` : ''}
+                  {' · '}
+                  <Link className={link} to={graphPath('FixCommit', `${c.repoUrl}@${c.sha}`)}>Open in graph</Link>
+                </li>
+              ))}
+            </ul>
+          )}
           <h2 className={h2}>Sources</h2>
           <ul className="list-inside list-disc space-y-1">
             {d.sources.map((s) => {

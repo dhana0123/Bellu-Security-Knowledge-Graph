@@ -3,7 +3,7 @@
 // buildState value written at every transition (Requirement 11).
 //
 // Persistence: each job is a (:Job {name}) node with the properties
-// queueState, queueAttempts, queueError, queueMode, queueLimit,
+// queueState, queueAttempts, queueError, queueMode, queueLimit, queueOrder,
 // queueStartedAt, queueEndedAt, queueUpdatedAt. buildState lives on
 // (:BuildMeta {id:"build"}).
 package worker
@@ -55,6 +55,16 @@ var ErrNotImplemented = errors.New("job not implemented")
 type RunOptions struct {
 	Mode  string
 	Limit int
+	// Order is the sample order, "first" or "latest". Empty means "first".
+	Order string
+}
+
+// order returns the sample order with the default applied.
+func order(s string) string {
+	if s == "" {
+		return "first"
+	}
+	return s
 }
 
 // Job is one named step of the queue.
@@ -74,6 +84,7 @@ type JobRecord struct {
 	Error    string
 	Mode     string // build mode of the last run
 	Limit    int    // sample limit of the last run
+	Order    string // sample order of the last run; empty means "first"
 }
 
 // Store persists queue state.
@@ -108,7 +119,7 @@ func Done(j Job, r JobRecord, opts RunOptions) bool {
 		return false
 	}
 	if j.ModeSpecific {
-		return r.Mode == opts.Mode && r.Limit == opts.Limit
+		return r.Mode == opts.Mode && r.Limit == opts.Limit && order(r.Order) == order(opts.Order)
 	}
 	return true
 }
@@ -206,7 +217,7 @@ func (q *Queue) Run(ctx context.Context) (Outcome, error) {
 func (q *Queue) runJob(ctx context.Context, j Job, sleep func(context.Context, time.Duration) error, log *slog.Logger) (JobRecord, error) {
 	rec := JobRecord{}
 	for attempt := 1; ; attempt++ {
-		rec = JobRecord{State: JobRunning, Attempts: attempt, Mode: q.Opts.Mode, Limit: q.Opts.Limit}
+		rec = JobRecord{State: JobRunning, Attempts: attempt, Mode: q.Opts.Mode, Limit: q.Opts.Limit, Order: order(q.Opts.Order)}
 		if err := q.Store.SaveJob(ctx, j.Name, rec); err != nil {
 			return rec, err
 		}

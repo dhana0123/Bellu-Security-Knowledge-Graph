@@ -73,6 +73,10 @@ func Resolve(ref source.Ref) (Key, error) {
 		return Exploit(ref.Raw)
 	case source.RefAuthor:
 		return text(ref, "Author", "authorName")
+	case source.RefRepository:
+		return Repository(ref.Raw)
+	case source.RefFixCommit:
+		return FixCommit(ref.Raw)
 	}
 	return Key{}, &Error{Kind: ref.Kind, Raw: ref.Raw, Reason: "unknown reference kind"}
 }
@@ -226,4 +230,114 @@ func unescapeCPE(s string) string {
 		b.WriteByte(s[i])
 	}
 	return b.String()
+}
+
+var (
+	scpRe    = regexp.MustCompile(`^[A-Za-z0-9._-]+@([A-Za-z0-9.-]+):(.+)$`)
+	segRe    = regexp.MustCompile(`^[A-Za-z0-9._~-]+$`)
+	sha40Re  = regexp.MustCompile(`^[0-9a-f]{40}$`)
+	gitHosts = map[string]bool{"github.com": true, "gitlab.com": true, "bitbucket.org": true}
+)
+
+// NormalizeRepoURL returns the canonical https URL of a git repository on
+// github.com, gitlab.com, or bitbucket.org. Scheme and host are lowercased;
+// credentials, port, query, fragment, a trailing "/" and ".git" are removed.
+// scp-style git@host:owner/repo and ssh://git@host/owner/repo become https.
+// GitHub and Bitbucket keep exactly owner/repo; GitLab keeps the group path up
+// to "/-/". The result normalizes to itself (Requirement 9.17).
+func NormalizeRepoURL(raw string) (string, error) {
+	bad := func(reason string) (string, error) {
+		return "", &Error{Kind: source.RefRepository, Raw: raw, Reason: reason}
+	}
+	v := strings.TrimSpace(raw)
+	if v == "" {
+		return bad("empty")
+	}
+	if !strings.Contains(v, "://") {
+		m := scpRe.FindStringSubmatch(v)
+		if m == nil {
+			return bad("not a repository URL")
+		}
+		v = "https://" + m[1] + "/" + m[2]
+	}
+	u, err := url.Parse(v)
+	if err != nil {
+		return bad("not a URL")
+	}
+	switch strings.ToLower(u.Scheme) {
+	case "http", "https", "ssh", "git":
+	default:
+		return bad("unsupported scheme")
+	}
+	host := strings.ToLower(u.Hostname())
+	if !gitHosts[host] {
+		return bad("host is not github.com, gitlab.com, or bitbucket.org")
+	}
+	var segs []string
+	for _, s := range strings.Split(strings.Trim(u.Path, "/"), "/") {
+		if s == "-" && host == "gitlab.com" {
+			break
+		}
+		segs = append(segs, s)
+	}
+	if host != "gitlab.com" && len(segs) > 2 {
+		segs = segs[:2]
+	}
+	if len(segs) < 2 {
+		return bad("path lacks owner and repository")
+	}
+	last := segs[len(segs)-1]
+	for strings.HasSuffix(last, ".git") {
+		last = strings.TrimSuffix(last, ".git")
+	}
+	segs[len(segs)-1] = last
+	for _, s := range segs {
+		if !segRe.MatchString(s) || s == "." || s == ".." {
+			return bad("bad path segment")
+		}
+	}
+	return "https://" + host + "/" + strings.Join(segs, "/"), nil
+}
+
+// Repository resolves a git repository URL to its Repository key.
+func Repository(raw string) (Key, error) {
+	n, err := NormalizeRepoURL(raw)
+	if err != nil {
+		return Key{}, err
+	}
+	return Key{"Repository", "url", n}, nil
+}
+
+// FixCommitKey returns repoUrl + "@" + sha. The repository URL is normalized
+// and sha must be 40 hex digits; uppercase hex is lowercased.
+func FixCommitKey(repoURL, sha string) (string, error) {
+	raw := repoURL + "@" + sha
+	n, err := NormalizeRepoURL(repoURL)
+	if err != nil {
+		reason := err.Error()
+		var e *Error
+		if errors.As(err, &e) {
+			reason = e.Reason
+		}
+		return "", &Error{Kind: source.RefFixCommit, Raw: raw, Reason: "repository: " + reason}
+	}
+	s := strings.ToLower(strings.TrimSpace(sha))
+	if !sha40Re.MatchString(s) {
+		return "", &Error{Kind: source.RefFixCommit, Raw: raw, Reason: "sha is not 40 hex digits"}
+	}
+	return n + "@" + s, nil
+}
+
+// FixCommit resolves "<repo URL>@<sha>" to the FixCommit key. The sha follows
+// the last "@", so scp-style repository URLs work.
+func FixCommit(raw string) (Key, error) {
+	i := strings.LastIndex(raw, "@")
+	if i < 0 {
+		return Key{}, &Error{Kind: source.RefFixCommit, Raw: raw, Reason: "missing @sha"}
+	}
+	k, err := FixCommitKey(raw[:i], raw[i+1:])
+	if err != nil {
+		return Key{}, err
+	}
+	return Key{"FixCommit", "fcKey", k}, nil
 }

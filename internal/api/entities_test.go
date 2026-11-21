@@ -45,10 +45,12 @@ func TestVulnerabilityDetail(t *testing.T) {
 				"p_osv_run": "R1", "p_osv_at": "2024-01-01", "p_osv_ref": "abc",
 				"p_nvd_run": "R2", "p_nvd_removed": true,
 			},
-			"weaknesses": []any{"CWE-917"},
-			"exploits":   []any{map[string]any{"eid": "50592", "authors": []any{"x"}}},
-			"products":   []any{map[string]any{"productName": "log4j", "vendors": []any{"apache"}}},
-			"domains":    []any{"nvd.nist.gov"},
+			"weaknesses":   []any{"CWE-917"},
+			"exploits":     []any{map[string]any{"eid": "50592", "authors": []any{"x"}}},
+			"products":     []any{map[string]any{"productName": "log4j", "vendors": []any{"apache"}}},
+			"domains":      []any{"nvd.nist.gov"},
+			"repositories": []any{map[string]any{"url": "https://github.com/apache/logging-log4j2", "host": "github.com"}},
+			"fixCommits":   []any{map[string]any{"sha": strings.Repeat("a", 40), "repoUrl": "https://github.com/apache/logging-log4j2", "url": "https://github.com/apache/logging-log4j2/commit/" + strings.Repeat("a", 40)}},
 		}}, nil
 	})
 	code, body := getJSON(t, e, "/v1/vulnerabilities/%20cve-2021-44228")
@@ -73,9 +75,26 @@ func TestVulnerabilityDetail(t *testing.T) {
 	if vk["source"] != "osv" || vk["runId"] != "R1" || vk["recordId"] != "abc" || vk["fetchedAt"] != "2024-01-01" {
 		t.Fatalf("provenance = %v", prov)
 	}
-	for _, k := range []string{"weaknesses", "exploits", "products", "domains", "graph"} {
+	for _, k := range []string{"weaknesses", "exploits", "products", "domains", "repositories", "fixCommits", "graph"} {
 		if body[k] == nil {
 			t.Fatalf("missing %s", k)
+		}
+	}
+	if r := body["repositories"].([]any); len(r) != 1 || r[0].(map[string]any)["host"] != "github.com" {
+		t.Fatalf("repositories = %v", body["repositories"])
+	}
+	if f := body["fixCommits"].([]any); len(f) != 1 || f[0].(map[string]any)["sha"] != strings.Repeat("a", 40) {
+		t.Fatalf("fixCommits = %v", body["fixCommits"])
+	}
+}
+func TestVulnerabilityDetailEmptyGitLists(t *testing.T) {
+	e := entityEnv(t, func(context.Context, string, map[string]any) ([]Row, error) {
+		return []Row{{"props": map[string]any{"cveID": "CVE-2020-0001"}}}, nil
+	})
+	_, body := getJSON(t, e, "/v1/vulnerabilities/CVE-2020-0001")
+	for _, k := range []string{"repositories", "fixCommits"} {
+		if l, ok := body[k].([]any); !ok || len(l) != 0 {
+			t.Errorf("%s = %#v, want empty list", k, body[k])
 		}
 	}
 }

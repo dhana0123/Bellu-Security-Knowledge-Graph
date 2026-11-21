@@ -118,7 +118,8 @@ func New(o Options) *Adapter {
 func (a *Adapter) Name() string { return Name }
 
 // Fetch implements source.Adapter. SampleLimit > 0 selects the sample rule and
-// ignores cp. Otherwise a Resume of the form full@... or an empty Checkpoint
+// ignores cp; SampleOrder "latest" takes the last SampleLimit records instead
+// of the first. Otherwise a Resume of the form full@... or an empty Checkpoint
 // selects the full catch-up, and a Watermark selects incremental windows.
 func (a *Adapter) Fetch(ctx context.Context, cp source.Checkpoint, opts source.RunOptions) (source.Iterator, error) {
 	if a.key == "" {
@@ -132,6 +133,18 @@ func (a *Adapter) Fetch(ctx context.Context, cp source.Checkpoint, opts source.R
 		it.mode = modeSample
 		it.limit = opts.SampleLimit
 		it.pageSize = min(MaxPageSize, opts.SampleLimit)
+		if opts.SampleOrder == source.SampleLatest {
+			// Read totalResults with a one-record request, then start so that
+			// the last SampleLimit records remain (ascending index order).
+			it.pageSize = 1
+			pg, err := it.request(ctx)
+			if err != nil {
+				return nil, err
+			}
+			it.total, it.haveTot = pg.total, true
+			it.next = max(0, pg.total-opts.SampleLimit)
+			it.pageSize = min(MaxPageSize, opts.SampleLimit)
+		}
 	case strings.HasPrefix(cp.Resume, fullPrefix):
 		ts, idx, err := parseResume(cp.Resume, fullPrefix)
 		if err != nil {
