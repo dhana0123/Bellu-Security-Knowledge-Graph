@@ -1,0 +1,288 @@
+// The only module that calls fetch. All response-shape knowledge lives here and in types.ts.
+import { ApiError } from './errors';
+import type {
+  CountEntry,
+  CveDetailData,
+  ExploitRef,
+  GraphEnvelope,
+  Neighborhood,
+  ProductRef,
+  SearchFilters,
+  SearchPage,
+  SourceInfo,
+  StatsData,
+  SyncEntry,
+  TopEntry,
+} from './types';
+
+export interface ClientOptions {
+  getKey: () => string | null;
+  /** Called on every HTTP 401. */
+  onUnauthorized?: () => void;
+  /** Called with the `graph` envelope of every response that carries one. */
+  onGraph?: (g: GraphEnvelope) => void;
+  fetchImpl?: typeof fetch;
+  timeoutMs?: number;
+}
+
+type Params = Record<string, string | number | boolean | undefined | null>;
+type Json = Record<string, unknown>;
+
+/** Builds a query string, skipping empty values. Never put credentials in here. */
+export function buildQuery(params: Params): string {
+  const sp = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v === undefined || v === null || v === '' || v === false) continue;
+    sp.set(k, String(v));
+  }
+  const s = sp.toString();
+  return s ? `?${s}` : '';
+}
+
+const isObj = (v: unknown): v is Json => typeof v === 'object' && v !== null && !Array.isArray(v);
+const arr = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
+const str = (v: unknown, d = ''): string => (typeof v === 'string' ? v : v == null ? d : String(v));
+const num = (v: unknown, d = 0): number => (typeof v === 'number' && Number.isFinite(v) ? v : d);
+const strList = (v: unknown): string[] => arr(v).map((x) => str(x)).filter((x) => x !== '');
+
+export function parseEnvelope(body: unknown): GraphEnvelope | null {
+  if (!isObj(body) || !isObj(body.graph)) return null;
+  const g = body.graph;
+  return {
+    version: typeof g.version === 'string' ? g.version : undefined,
+    buildState: str(g.buildState, 'unknown'),
+    buildMode: str(g.buildMode, 'unknown'),
+    stale: typeof g.stale === 'boolean' ? g.stale : undefined,
+    sources: isObj(g.sources) ? (g.sources as GraphEnvelope['sources']) : undefined,
+  };
+}
+
+function toCounts(v: unknown): CountEntry[] {
+  if (Array.isArray(v)) {
+    return v.filter(isObj).map((o) => ({
+      name: str(o.name ?? o.label ?? o.type ?? o.year ?? o.severity ?? o.key),
+      count: num(o.count ?? o.n),
+    }));
+  }
+  if (isObj(v)) return Object.entries(v).map(([name, count]) => ({ name, count: num(count) }));
+  return [];
+}
+
+function toTop(v: unknown): TopEntry[] {
+  return arr(v)
+    .filter(isObj)
+    .map((o) => ({ key: str(o.key ?? o.name), count: num(o.count ?? o.n) }));
+}
+
+export function normalizeStats(body: Json): StatsData {
+  const counts = isObj(body.counts) ? body.counts : body;
+  const ex = isObj(body.exploited) ? body.exploited : isObj(body.exploitedShare) ? body.exploitedShare : {};
+  const top = isObj(body.top10) ? body.top10 : isObj(body.top) ? body.top : body;
+  const syncRaw = body.sync ?? body.syncStatus ?? body.sources;
+  const sync: SyncEntry[] = Array.isArray(syncRaw)
+    ? syncRaw.filter(isObj).map((o) => ({
+        source: str(o.source ?? o.name),
+        status: str(o.status ?? o.lastRunStatus, 'never run'),
+        lastSuccess: o.lastSuccess == null ? null : str(o.lastSuccess),
+        deadLetters: o.deadLetters == null ? null : num(o.deadLetters),
+      }))
+    : isObj(syncRaw)
+      ? Object.entries(syncRaw).map(([source, o]) => {
+          const e = isObj(o) ? o : {};
+          return {
+            source,
+            status: str(e.status ?? e.lastRunStatus, 'never run'),
+            lastSuccess: e.lastSuccess == null ? null : str(e.lastSuccess),
+            deadLetters: e.deadLetters == null ? null : num(e.deadLetters),
+          };
+        })
+      : [];
+  return {
+    generatedAt: body.generatedAt == null ? null : str(body.generatedAt),
+    statsStale: body.statsStale === true,
+    labelCounts: toCounts(counts.labels ?? counts.nodes ?? counts.labelCounts),
+    relationshipCounts: toCounts(counts.relationships ?? counts.relationshipCounts),
+    byYear: toCounts(body.byYear ?? body.cvesByYear ?? body.years).sort((a, b) => a.name.localeCompare(b.name)),
+    bySeverity: toCounts(body.bySeverity ?? body.severity ?? body.cvss),
+    exploited: {
+      exploited: num(ex.exploited),
+      total: num(ex.total),
+      ratio: num(ex.ratio),
+    },
+    topWeaknesses: toTop(top.weaknesses ?? top.topWeaknesses),
+    topVendors: toTop(top.vendors ?? top.topVendors),
+    topProducts: toTop(top.products ?? top.topProducts),
+    sync,
+  };
+}
+
+export function normalizeSources(body: unknown): SourceInfo[] {
+  const list = Array.isArray(body) ? body : isObj(body) ? arr(body.sources ?? body.items) : [];
+  return list.filter(isObj).map((o) => ({
+    name: str(o.name),
+    license: str(o.license),
+    attribution: str(o.attribution ?? o.attributionText),
+  }));
+}
+
+export function normalizeDetail(body: Json): CveDetailData {
+  return {
+    vulnerability: isObj(body.vulnerability) ? body.vulnerability : {},
+    sources: strList(body.sources),
+    weaknesses: strList(body.weaknesses),
+    exploits: arr(body.exploits)
+      .filter(isObj)
+      .map(
+        (o): ExploitRef => ({
+          eid: str(o.eid),
+          exploitPublishDate: o.exploitPublishDate == null ? null : str(o.exploitPublishDate),
+          exploitType: o.exploitType == null ? null : str(o.exploitType),
+          platform: o.platform == null ? null : str(o.platform),
+          authors: strList(o.authors),
+        }),
+      ),
+    products: arr(body.products)
+      .filter(isObj)
+      .map(
+        (o): ProductRef => ({
+          productName: str(o.productName),
+          productType: o.productType == null ? null : str(o.productType),
+          affectedVersion: o.affectedVersion == null ? null : str(o.affectedVersion),
+          numOfVersion: typeof o.numOfVersion === 'number' ? o.numOfVersion : null,
+          vendors: strList(o.vendors),
+        }),
+      ),
+    domains: strList(body.domains),
+  };
+}
+
+export function normalizeNeighborhood(body: Json): Neighborhood {
+  return {
+    nodes: arr(body.nodes)
+      .filter(isObj)
+      .map((o) => ({
+        id: str(o.id),
+        type: str(o.type),
+        key: str(o.key),
+        label: str(o.label, str(o.key)),
+        properties: isObj(o.properties) ? o.properties : undefined,
+      })),
+    edges: arr(body.edges)
+      .filter(isObj)
+      .map((o) => ({
+        id: str(o.id),
+        source: str(o.source),
+        target: str(o.target),
+        type: str(o.type),
+        viewID: o.viewID == null ? undefined : str(o.viewID),
+      })),
+    truncated: body.truncated === true,
+  };
+}
+
+export function createClient(opts: ClientOptions) {
+  const doFetch = opts.fetchImpl ?? ((...a: Parameters<typeof fetch>) => fetch(...a));
+  const timeoutMs = opts.timeoutMs ?? 30_000;
+
+  async function request(
+    action: string,
+    path: string,
+    params: Params = {},
+    keyOverride?: string,
+    signal?: AbortSignal,
+  ): Promise<Json> {
+    const key = keyOverride ?? opts.getKey();
+    const ctrl = new AbortController();
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      ctrl.abort();
+    }, timeoutMs);
+    signal?.addEventListener('abort', () => ctrl.abort(), { once: true });
+    let res: Response;
+    try {
+      res = await doFetch(`/v1${path}${buildQuery(params)}`, {
+        method: 'GET',
+        headers: { Accept: 'application/json', ...(key ? { Authorization: `Bearer ${key}` } : {}) },
+        signal: ctrl.signal,
+        cache: 'no-store',
+        credentials: 'omit',
+      });
+    } catch {
+      throw new ApiError(action, timedOut ? 'timeout' : 'network error');
+    } finally {
+      clearTimeout(timer);
+    }
+    let body: unknown;
+    try {
+      body = await res.json();
+    } catch {
+      body = null;
+    }
+    const env = parseEnvelope(body);
+    if (env) opts.onGraph?.(env);
+    if (res.status === 401) opts.onUnauthorized?.();
+    if (!res.ok) {
+      const e = isObj(body) && isObj(body.error) ? body.error : {};
+      throw new ApiError(
+        action,
+        res.status,
+        typeof e.code === 'string' ? e.code : undefined,
+        typeof e.parameter === 'string' ? e.parameter : undefined,
+        typeof e.message === 'string' ? e.message : undefined,
+      );
+    }
+    return isObj(body) ? body : {};
+  }
+
+  return {
+    /** Exactly one call; the caller stores the key only when this resolves. */
+    async login(key: string): Promise<void> {
+      await request('login', '/status', {}, key);
+    },
+    status: (signal?: AbortSignal) => request('status', '/status', {}, undefined, signal),
+    async search(f: Partial<SearchFilters>, limit: number, cursor?: string, signal?: AbortSignal): Promise<SearchPage> {
+      const b = await request(
+        'search',
+        '/vulnerabilities',
+        { ...f, limit, cursor },
+        undefined,
+        signal,
+      );
+      return {
+        items: arr(b.items)
+          .filter(isObj)
+          .map((o) => ({
+            cveID: str(o.cveID),
+            publishedDate: o.publishedDate == null ? null : str(o.publishedDate),
+            description: o.description == null ? null : str(o.description),
+            v3baseScore: typeof o.v3baseScore === 'number' ? o.v3baseScore : null,
+            exploitability: o.exploitability == null ? null : str(o.exploitability),
+            kev: typeof o.kev === 'boolean' ? o.kev : null,
+            sources: strList(o.sources),
+          })),
+        limit: num(b.limit, limit),
+        nextCursor: typeof b.nextCursor === 'string' && b.nextCursor ? b.nextCursor : undefined,
+      };
+    },
+    async cve(id: string, signal?: AbortSignal): Promise<CveDetailData> {
+      return normalizeDetail(
+        await request('cve detail', `/vulnerabilities/${encodeURIComponent(id)}`, {}, undefined, signal),
+      );
+    },
+    async sources(signal?: AbortSignal): Promise<SourceInfo[]> {
+      return normalizeSources(await request('sources', '/sources', {}, undefined, signal));
+    },
+    async neighborhood(
+      p: { id: string; type: string; depth: 1 | 2; limit: number },
+      signal?: AbortSignal,
+    ): Promise<Neighborhood> {
+      return normalizeNeighborhood(await request('graph', '/graph/neighborhood', p, undefined, signal));
+    },
+    async stats(signal?: AbortSignal): Promise<StatsData> {
+      return normalizeStats(await request('stats', '/stats', {}, undefined, signal));
+    },
+  };
+}
+
+export type ApiClient = ReturnType<typeof createClient>;
