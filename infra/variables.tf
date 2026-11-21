@@ -57,6 +57,12 @@ variable "operator_cidr" {
   type        = string
 }
 
+variable "availability_zone" {
+  description = "Availability zone for the default-VPC subnet (ignored when subnet_id is set). Use it when a zone has no capacity for the instance type."
+  type        = string
+  default     = null
+}
+
 variable "subnet_id" {
   description = "Subnet for the instance. When null, a subnet of the default VPC is used."
   type        = string

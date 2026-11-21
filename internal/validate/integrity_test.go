@@ -94,3 +94,17 @@ func TestReportJSON(t *testing.T) {
 		t.Fatalf("%s", b)
 	}
 }
+
+func TestNeo4j2025ConstraintType(t *testing.T) {
+	in := goodInputs()
+	for i := range in.Constraints {
+		in.Constraints[i].Type = "NODE_PROPERTY_UNIQUENESS"
+	}
+	if r := BuildReport(in); !r.Passed() {
+		t.Fatalf("failed=%v", r.Failed)
+	}
+	in.Constraints[0].Type = "NODE_KEY"
+	if r := BuildReport(in); r.Passed() {
+		t.Fatal("a non-uniqueness constraint must fail")
+	}
+}

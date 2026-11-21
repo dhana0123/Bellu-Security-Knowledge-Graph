@@ -83,7 +83,7 @@ func CheckConstraints(cat []CatalogConstraint) []SchemaCheck {
 		switch {
 		case !ok:
 			s.Message = "missing"
-		case got.Type != "UNIQUENESS" || got.Label != r.Label || got.Prop != r.Prop:
+		case !isUniqueness(got.Type) || got.Label != r.Label || got.Prop != r.Prop:
 			s.Message = fmt.Sprintf("expected UNIQUENESS on %s.%s, found %s on %s.%s",
 				r.Label, r.Prop, got.Type, got.Label, got.Prop)
 		default:
@@ -256,4 +256,10 @@ func nonNilEnd(e []EndpointCheck) []EndpointCheck {
 		return []EndpointCheck{}
 	}
 	return e
+}
+
+// isUniqueness accepts the uniqueness constraint type as Neo4j 5
+// ("UNIQUENESS") and Neo4j 2025+ ("NODE_PROPERTY_UNIQUENESS") report it.
+func isUniqueness(t string) bool {
+	return t == "UNIQUENESS" || t == "NODE_PROPERTY_UNIQUENESS"
 }
