@@ -21,6 +21,7 @@ import (
 
 	"github.com/bellu/bskg/internal/httpx"
 	"github.com/bellu/bskg/internal/source"
+	"github.com/bellu/bskg/internal/source/gitref"
 )
 
 // fakeClock advances only when Sleep is called, so tests never wait.
@@ -693,33 +694,33 @@ func TestParseGitLink(t *testing.T) {
 	sha := strings.Repeat("a", 40)
 	cases := []struct {
 		in   string
-		want gitLink
+		want gitref.Link
 		ok   bool
 	}{
-		{"https://github.com/o/r", gitLink{repo: "https://github.com/o/r"}, true},
-		{"https://github.com/o/r.git", gitLink{repo: "https://github.com/o/r"}, true},
-		{"https://github.com/o/r/blob/main/x.go", gitLink{repo: "https://github.com/o/r"}, true},
-		{"https://github.com/o/r/releases/tag/v1", gitLink{repo: "https://github.com/o/r"}, true},
-		{"https://github.com/o/r/commit/" + sha, gitLink{repo: "https://github.com/o/r", sha: sha}, true},
-		{"https://github.com/o/r/commit/" + sha + ".diff", gitLink{repo: "https://github.com/o/r", sha: sha}, true},
-		{"https://github.com/o/r/commit/abc", gitLink{repo: "https://github.com/o/r", badCommit: true}, true},
-		{"https://github.com/o/r/pull/1/commits/" + sha, gitLink{repo: "https://github.com/o/r"}, true},
-		{"https://gitlab.com/g/r/-/commit/" + sha, gitLink{repo: "https://gitlab.com/g/r", sha: sha}, true},
-		{"https://gitlab.com/g/r/commit/" + sha, gitLink{repo: "https://gitlab.com/g/r", sha: sha}, true},
-		{"https://gitlab.com/g/s/r", gitLink{repo: "https://gitlab.com/g/s/r"}, true},
-		{"https://gitlab.com/g/r/issues/4", gitLink{repo: "https://gitlab.com/g/r"}, true},
-		{"https://bitbucket.org/o/r/commits/" + sha, gitLink{repo: "https://bitbucket.org/o/r", sha: sha}, true},
-		{"https://bitbucket.org/o/r/commits/zz", gitLink{repo: "https://bitbucket.org/o/r", badCommit: true}, true},
-		{"https://github.com/o", gitLink{}, false},
-		{"https://gist.github.com/o/r", gitLink{}, false},
-		{"https://example.com/o/r", gitLink{}, false},
-		{"ftp://github.com/o/r", gitLink{}, false},
-		{"not a url", gitLink{}, false},
+		{"https://github.com/o/r", gitref.Link{Repo: "https://github.com/o/r"}, true},
+		{"https://github.com/o/r.git", gitref.Link{Repo: "https://github.com/o/r"}, true},
+		{"https://github.com/o/r/blob/main/x.go", gitref.Link{Repo: "https://github.com/o/r"}, true},
+		{"https://github.com/o/r/releases/tag/v1", gitref.Link{Repo: "https://github.com/o/r"}, true},
+		{"https://github.com/o/r/commit/" + sha, gitref.Link{Repo: "https://github.com/o/r", SHA: sha}, true},
+		{"https://github.com/o/r/commit/" + sha + ".diff", gitref.Link{Repo: "https://github.com/o/r", SHA: sha}, true},
+		{"https://github.com/o/r/commit/abc", gitref.Link{Repo: "https://github.com/o/r", BadCommit: true}, true},
+		{"https://github.com/o/r/pull/1/commits/" + sha, gitref.Link{Repo: "https://github.com/o/r"}, true},
+		{"https://gitlab.com/g/r/-/commit/" + sha, gitref.Link{Repo: "https://gitlab.com/g/r", SHA: sha}, true},
+		{"https://gitlab.com/g/r/commit/" + sha, gitref.Link{Repo: "https://gitlab.com/g/r", SHA: sha}, true},
+		{"https://gitlab.com/g/s/r", gitref.Link{Repo: "https://gitlab.com/g/s/r"}, true},
+		{"https://gitlab.com/g/r/issues/4", gitref.Link{Repo: "https://gitlab.com/g/r"}, true},
+		{"https://bitbucket.org/o/r/commits/" + sha, gitref.Link{Repo: "https://bitbucket.org/o/r", SHA: sha}, true},
+		{"https://bitbucket.org/o/r/commits/zz", gitref.Link{Repo: "https://bitbucket.org/o/r", BadCommit: true}, true},
+		{"https://github.com/o", gitref.Link{}, false},
+		{"https://gist.github.com/o/r", gitref.Link{}, false},
+		{"https://example.com/o/r", gitref.Link{}, false},
+		{"ftp://github.com/o/r", gitref.Link{}, false},
+		{"not a url", gitref.Link{}, false},
 	}
 	for _, c := range cases {
-		got, ok := parseGitLink(c.in)
+		got, ok := gitref.Parse(c.in)
 		if ok != c.ok || got != c.want {
-			t.Errorf("parseGitLink(%q) = %+v, %v; want %+v, %v", c.in, got, ok, c.want, c.ok)
+			t.Errorf("gitref.Parse(%q) = %+v, %v; want %+v, %v", c.in, got, ok, c.want, c.ok)
 		}
 	}
 }
