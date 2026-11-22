@@ -30,3 +30,6 @@ infra/.terraform/
 !/ui/dist/index.html
 !/ui/dist/.gitkeep
 infra/terraform.tfvars
+
+# local bun lockfile (the project lockfile is ui/package-lock.json)
+/ui/bun.lock
