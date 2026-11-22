@@ -5,7 +5,7 @@ import { useAuth } from '../auth/AuthContext';
 import { btn, btnPrimary, card, link, muted, td } from '../common/classes';
 import { ErrorMessage, Loading } from '../common/ErrorMessage';
 import { ExternalLink } from '../common/ExternalLink';
-import { graphPath } from '../cve/links';
+import { atlasTechniquePath, attackPatternPath, graphPath, packagePath, techniquePath } from '../cve/links';
 import { newGraph, runLayout, syncGraph } from './build';
 import { CveShortcut } from './GraphEntry';
 import { overviewIterations, runLayoutAsync, seedGrouped } from './layout';
@@ -35,6 +35,12 @@ interface OverviewInfo {
   total: { nodes: number; relationships: number };
 }
 
+const ENTITY_PATHS: Record<string, ((key: string) => string) | undefined> = {
+  Package: packagePath,
+  AttackPattern: attackPatternPath,
+  Technique: techniquePath,
+  AtlasTechnique: atlasTechniquePath,
+};
 type Sel = { key: string; properties?: Record<string, unknown> };
 const prop = (n: Sel, k: string): string => (typeof n.properties?.[k] === 'string' ? (n.properties[k] as string) : '');
 const fixSha = (n: Sel): string => prop(n, 'sha') || n.key.slice(n.key.lastIndexOf('@') + 1);
@@ -353,6 +359,18 @@ export function GraphView() {
                   </Link>
                 )}
               </div>
+              {ENTITY_PATHS[sel.type] && (
+                <p className="mb-3 text-sm">
+                  <Link className={link} to={ENTITY_PATHS[sel.type]!(sel.key)}>
+                    Open {sel.type} page
+                  </Link>
+                </p>
+              )}
+              {sel.type === 'Technique' && prop(sel, 'url') !== '' && (
+                <p className="mb-3 text-sm">
+                  <ExternalLink href={prop(sel, 'url')}>Open on attack.mitre.org</ExternalLink>
+                </p>
+              )}
               {sel.type === 'Repository' && (
                 <p className="mb-3 text-sm">
                   <ExternalLink href={sel.key}>Open repository</ExternalLink>

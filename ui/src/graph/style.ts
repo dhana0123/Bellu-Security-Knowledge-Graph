@@ -11,6 +11,10 @@ export const LABEL_COLORS: Readonly<Record<string, string>> = {
   Domain: '#8b8d98',
   Repository: '#d6409f',
   FixCommit: '#c9a227',
+  Package: '#0091ff',
+  AttackPattern: '#ab4aba',
+  Technique: '#e93d82',
+  AtlasTechnique: '#00a2c7',
 };
 export const FALLBACK_COLOR = '#687076';
 export const LABEL_ORDER: readonly string[] = Object.keys(LABEL_COLORS);
@@ -36,6 +40,9 @@ export function shortSha(node: Pick<GraphNode, 'key' | 'properties'>): string {
   return sha.slice(0, 7);
 }
 
+function truncateCaption(text: string, max: number): string {
+  return text.length <= max ? text : `${text.slice(0, Math.max(1, max - 1))}…`;
+}
 /** Caption drawn on a node: its label (or key), shortened to max characters. Repository and FixCommit use their own form. */
 export function captionFor(node: Pick<GraphNode, 'label' | 'key'> & Partial<Pick<GraphNode, 'type' | 'properties'>>, max = 14): string {
   if (node.type === 'Repository') {
@@ -43,6 +50,14 @@ export function captionFor(node: Pick<GraphNode, 'label' | 'key'> & Partial<Pick
     return p.length <= 28 ? p : `${p.slice(0, 27)}…`;
   }
   if (node.type === 'FixCommit') return shortSha({ key: node.key, properties: node.properties });
+  if (node.type === 'AttackPattern' || node.type === 'Technique' || node.type === 'AtlasTechnique') {
+    return truncateCaption((node.key || node.label || '').trim(), max + 4);
+  }
+  if (node.type === 'Package') {
+    const name = node.properties?.name;
+    const text = typeof name === 'string' && name.trim() !== '' ? name.trim() : (node.label || node.key || '').trim();
+    return truncateCaption(text, max + 4);
+  }
   const text = (node.label || node.key || '').trim();
   return text.length <= max ? text : `${text.slice(0, Math.max(1, max - 1))}…`;
 }

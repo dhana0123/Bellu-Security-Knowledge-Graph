@@ -1,5 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { buildQuery, createClient, normalizeDetail, normalizeOverview, normalizeStats, parseEnvelope } from './client';
+import {
+  buildQuery,
+  createClient,
+  normalizeAtlasTechnique,
+  normalizeAttackPattern,
+  normalizeCoPage,
+  normalizeDetail,
+  normalizePackage,
+  normalizeTechnique, normalizeOverview, normalizeStats, parseEnvelope } from './client';
 import { ApiError } from './errors';
 import { clearKey, loadKey, saveKey } from './session';
 
@@ -201,5 +209,73 @@ describe('normalizeDetail repositories and fix commits', () => {
     });
     expect(s.labelCounts).toEqual([{ name: 'Repository', count: 2 }, { name: 'FixCommit', count: 3 }]);
     expect(s.relationshipCounts).toEqual([{ name: 'HAS_FIX_COMMIT', count: 3 }]);
+  });
+});
+
+describe('new-source normalizers', () => {
+  it('normalizeDetail treats absent lists as empty and keeps the new lists', () => {
+    const empty = normalizeDetail({ vulnerability: { kev: true, epssScore: 0.5, aliases: ['GHSA-x'] } });
+    expect(empty.packages).toEqual([]);
+    expect(empty.attackPatterns).toEqual([]);
+    expect(empty.techniques).toEqual([]);
+    const d = normalizeDetail({
+      vulnerability: {},
+      packages: [{ purl: 'pkg:npm/a', ecosystem: 'npm', name: 'a', introduced: '1', fixed: '', affectedRanges: ['[1,2)', 5] }, { name: 'no purl' }],
+      attackPatterns: [{ capecID: 'CAPEC-1', name: 'n', viaWeakness: 'CWE-79' }, 3],
+      techniques: [{ attackID: 'T1059', name: 't', viaAttackPattern: 'CAPEC-1' }],
+    });
+    expect(d.packages).toEqual([
+      { purl: 'pkg:npm/a', ecosystem: 'npm', name: 'a', introduced: '1', fixed: null, lastAffected: null, affectedRanges: ['[1,2)', '5'] },
+    ]);
+    expect(d.attackPatterns).toEqual([{ capecID: 'CAPEC-1', name: 'n', viaWeakness: 'CWE-79' }]);
+    expect(d.techniques[0]).toEqual({ attackID: 'T1059', name: 't', viaAttackPattern: 'CAPEC-1' });
+  });
+  it('normalizes entity responses', () => {
+    expect(normalizePackage({ package: { purl: 'p' }, vulnerabilities: [{ cveID: 'CVE-1', v3baseScore: 7.5 }, {}], repositories: [{ url: 'https://github.com/o/r', host: 'github.com' }] })).toEqual({
+      package: { purl: 'p' },
+      vulnerabilities: [{ cveID: 'CVE-1', publishedDate: null, v3baseScore: 7.5 }],
+      repositories: [{ url: 'https://github.com/o/r', host: 'github.com' }],
+    });
+    expect(normalizePackage({})).toEqual({ package: {}, vulnerabilities: [], repositories: [] });
+    expect(normalizeAttackPattern({ attackPattern: { capecID: 'CAPEC-1' }, weaknesses: [{ cweID: 'CWE-79', cweName: 'XSS' }], techniques: [{ attackID: 'T1', name: 'n' }] })).toEqual({
+      attackPattern: { capecID: 'CAPEC-1' },
+      weaknesses: [{ cweID: 'CWE-79', cweName: 'XSS' }],
+      techniques: [{ attackID: 'T1', name: 'n' }],
+    });
+    expect(normalizeTechnique({ technique: {}, attackPatterns: [{ capecID: 'C', name: 'n' }], atlasTechniques: [{ atlasID: 'AML.T1', name: 'a' }] }).atlasTechniques).toEqual([{ atlasID: 'AML.T1', name: 'a' }]);
+    expect(normalizeAtlasTechnique({ atlasTechnique: {}, techniques: [{ attackID: 'T1', name: 'n' }] }).techniques).toHaveLength(1);
+    expect(normalizeAtlasTechnique({}).techniques).toEqual([]);
+  });
+  it('normalizeCoPage and stats additions', () => {
+    expect(normalizeCoPage({ found: 3, limit: 10, items: [{ cveID: 'CVE-1', shared: 2, v3baseScore: 9 }, { shared: 1 }], skippedProducts: 1 })).toEqual({
+      found: 3,
+      limit: 10,
+      items: [{ cveID: 'CVE-1', shared: 2, v3baseScore: 9 }],
+      skippedProducts: 1,
+    });
+    const st = normalizeStats({ kevCount: 12, epssHigh: 7 });
+    expect([st.kevCount, st.epssHigh]).toEqual([12, 7]);
+    const none = normalizeStats({});
+    expect([none.kevCount, none.epssHigh]).toEqual([null, null]);
+  });
+  it('encodes keys in entity routes and maps co 404 to null', async () => {
+    const f = vi
+      .fn()
+      .mockResolvedValueOnce(json(200, { package: {} }))
+      .mockResolvedValueOnce(json(404, { error: { code: 'not_found' } }))
+      .mockResolvedValueOnce(json(200, { found: 0, limit: 10, items: [] }));
+    const c = createClient({ getKey: () => 'k', fetchImpl: f as unknown as typeof fetch });
+    await c.package('pkg:npm/@scope/name@1.0');
+    expect(f.mock.calls[0]?.[0]).toBe(`/v1/packages/${encodeURIComponent('pkg:npm/@scope/name@1.0')}`);
+    expect(await c.coExploited('GHSA-aaaa')).toBeNull();
+    expect(f.mock.calls[1]?.[0]).toBe('/v1/vulnerabilities/GHSA-aaaa/co-exploited?limit=10');
+    expect((await c.coAffected('CVE-1'))?.items).toEqual([]);
+  });
+  it('sends the new search filters', async () => {
+    const f = vi.fn().mockResolvedValue(json(200, { items: [{ cveID: 'CVE-1', epssScore: 0.25, kev: true }], limit: 50 }));
+    const c = createClient({ getKey: () => 'k', fetchImpl: f as unknown as typeof fetch });
+    const page = await c.search({ epssMin: '0.1', epssMax: '0.9', ecosystem: 'GitHub Actions' }, 50);
+    expect(f.mock.calls[0]?.[0]).toBe('/v1/vulnerabilities?epssMin=0.1&epssMax=0.9&ecosystem=GitHub+Actions&limit=50');
+    expect(page.items[0]).toMatchObject({ epssScore: 0.25, kev: true });
   });
 });

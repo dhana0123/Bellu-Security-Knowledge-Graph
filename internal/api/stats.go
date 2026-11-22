@@ -81,6 +81,8 @@ type StatsResult struct {
 	TopVendors       []keyCount      `json:"topVendors"`
 	TopProducts      []keyCount      `json:"topProducts"`
 	ExploitedShare   exploitedShare  `json:"exploitedShare"`
+	KEVCount         int64           `json:"kevCount"` // Vulnerabilities with kev = true
+	EPSSHigh         int64           `json:"epssHigh"` // Vulnerabilities with epssScore >= 0.1
 }
 
 func asInt(v any) int64 {
@@ -131,6 +133,13 @@ func computeStats(ctx context.Context, run queryFunc, now time.Time, maxPhase in
 			return nil, err
 		}
 		res.Relationships = append(res.Relationships, nameCount{Type: r.Name, Count: n})
+	}
+	var err error
+	if res.KEVCount, err = count(cypherStatsKevCount); err != nil {
+		return nil, err
+	}
+	if res.EPSSHigh, err = count(cypherStatsEpssHigh); err != nil {
+		return nil, err
 	}
 	rows, err := run(ctx, cypherStatsScan, nil)
 	if err != nil {
@@ -309,6 +318,8 @@ func (o *ops) stats(w http.ResponseWriter, r *http.Request) {
 		"topVendors":       nonNil(res.TopVendors),
 		"topProducts":      nonNil(res.TopProducts),
 		"exploitedShare":   res.ExploitedShare,
+		"kevCount":         res.KEVCount,
+		"epssHigh":         res.EPSSHigh,
 		"sync":             nil,
 		"coverage":         []coverageJSON{},
 	}
@@ -345,20 +356,32 @@ var coverageQueries = map[string]string{
 	"nvd":       cypherCoverageVulns,
 	"cwe":       cypherCoverageWeaknesses,
 	"exploitdb": cypherCoverageExploits,
+	"kev":       cypherCoverageKEV,
+	"epss":      cypherCoverageEPSS,
+	"osv":       cypherCoverageOSV,
+	"ghsa":      cypherCoverageGHSA,
+	"attack":    cypherCoverageAttack,
+	"atlas":     cypherCoverageAtlas,
+	"capec":     cypherCoverageCAPEC,
 }
+
+// coveragePhase is the schema phase a source's in-graph count needs; a source
+// missing here needs phase 1. Below it the count is not run and inGraph is {}.
+var coveragePhase = map[string]int{"attack": 3, "atlas": 3, "capec": 3}
 
 // coverage returns one entry per enabled source, in configured order. It is
 // read per request and never cached. A failing count query leaves inGraph
 // null and does not fail the statistics.
 func (o *ops) coverage(ctx context.Context, srcs []checkpoint.SourceStatus) []coverageJSON {
 	out := make([]coverageJSON, 0, len(srcs))
+	phase := o.s.maxPhase(ctx)
 	for _, s := range srcs {
 		c := coverageJSON{Source: s.Source, UpstreamAt: tptr(s.UpstreamAt)}
 		if len(s.Upstream) > 0 {
 			c.Upstream = s.Upstream
 		}
 		c.InGraph = map[string]int64{}
-		if q, ok := coverageQueries[s.Source]; ok {
+		if q, ok := coverageQueries[s.Source]; ok && phase >= max(1, coveragePhase[s.Source]) {
 			rows, err := o.q(ctx, q, nil)
 			if err != nil {
 				c.InGraph = nil

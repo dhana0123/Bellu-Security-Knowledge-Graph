@@ -21,6 +21,9 @@ export interface SearchFilters {
   cvssV3Max: string;
   exploitability: string;
   kev: boolean;
+  epssMin: string;
+  epssMax: string;
+  ecosystem: string;
   cwe: string;
   includeRejected: boolean;
 }
@@ -33,6 +36,7 @@ export interface VulnerabilityRow {
   v3baseSeverity?: string | null;
   exploitability?: string | null;
   kev?: boolean | null;
+  epssScore?: number | null;
   sources?: string[];
 }
 
@@ -76,6 +80,9 @@ export interface CveDetailData {
   domains: string[];
   repositories: RepositoryRef[];
   fixCommits: FixCommitRef[];
+  packages: PackageRef[];
+  attackPatterns: AttackPatternRef[];
+  techniques: TechniqueRef[];
 }
 
 export interface SourceInfo {
@@ -150,4 +157,56 @@ export interface StatsData {
   topProducts: TopEntry[];
   sync: SyncEntry[];
   coverage: CoverageEntry[];
+  kevCount: number | null;
+  epssHigh: number | null;
+}
+export interface PackageRef {
+  purl: string;
+  ecosystem: string;
+  name: string;
+  introduced: string | null;
+  fixed: string | null;
+  lastAffected: string | null;
+  affectedRanges: string[];
+}
+export interface AttackPatternRef {
+  capecID: string;
+  name: string;
+  viaWeakness: string | null;
+}
+export interface TechniqueRef {
+  attackID: string;
+  name: string;
+  viaAttackPattern: string | null;
+}
+/** GET /v1/vulnerabilities/{id}/co-exploited and /co-affected. */
+export interface CoItem {
+  cveID: string;
+  shared: number;
+  v3baseScore: number | null;
+}
+export interface CoPage {
+  found: number;
+  limit: number;
+  items: CoItem[];
+  skippedProducts?: number;
+}
+export interface PackageDetail {
+  package: Record<string, unknown>;
+  vulnerabilities: { cveID: string; publishedDate: string | null; v3baseScore: number | null }[];
+  repositories: RepositoryRef[];
+}
+export interface AttackPatternDetail {
+  attackPattern: Record<string, unknown>;
+  weaknesses: { cweID: string; cweName: string }[];
+  techniques: { attackID: string; name: string }[];
+}
+export interface TechniqueDetail {
+  technique: Record<string, unknown>;
+  attackPatterns: { capecID: string; name: string }[];
+  atlasTechniques: { atlasID: string; name: string }[];
+}
+export interface AtlasTechniqueDetail {
+  atlasTechnique: Record<string, unknown>;
+  techniques: { attackID: string; name: string }[];
 }

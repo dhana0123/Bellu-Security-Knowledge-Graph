@@ -43,9 +43,7 @@ function Top({ title, rows }: { title: string; rows: TopEntry[] }) {
 function Coverage({ entries }: { entries: CoverageEntry[] }) {
   const { sources } = useAuth();
   const rows = coverageRows(entries);
-  const notices = entries
-    .map((e) => sources.find((i) => i.name.toLowerCase() === e.source.toLowerCase()))
-    .filter((i): i is SourceInfo => !!i && i.attribution !== '');
+  const notices = sources.filter((i: SourceInfo) => i.attribution !== '');
   const fmt = (n: number | null) => (n === null ? '' : n.toLocaleString('en-US'));
   return (
     <>
@@ -108,6 +106,20 @@ export function Stats() {
               These statistics are stale: the latest computation failed and the previous result is shown.
             </p>
           )}
+          <div className="my-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {s.kevCount !== null && (
+              <div className={card}>
+                <p className="text-sm text-slate-400">Known exploited (KEV)</p>
+                <p className="text-2xl font-semibold text-slate-50">{s.kevCount.toLocaleString('en-US')}</p>
+              </div>
+            )}
+            {s.epssHigh !== null && (
+              <div className={card}>
+                <p className="text-sm text-slate-400">High EPSS</p>
+                <p className="text-2xl font-semibold text-slate-50">{s.epssHigh.toLocaleString('en-US')}</p>
+              </div>
+            )}
+          </div>
           <Coverage entries={s.coverage} />
           <p className="my-3 text-sm text-slate-300">
             Build state: {graph?.buildState ?? 'unknown'}. Build mode: {graph?.buildMode ?? 'not set'}.

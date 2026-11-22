@@ -70,6 +70,8 @@ type Server struct {
 	phaseMu  sync.Mutex
 	phaseVal int
 	phaseExp time.Time
+
+	routes []string // "METHOD /path" of every documented route, in registration order
 }
 
 // New builds a Server. Auth, Limiter, Meta, Ping, and Logger are required.
@@ -99,6 +101,7 @@ func New(cfg Config) *Server {
 		},
 	}
 	s.mux.HandleFunc("GET /healthz", s.healthz)
+	s.routes = append(s.routes, "GET /healthz")
 	s.mux.Handle("/v1/", s.protect(http.HandlerFunc(s.notFound)))
 	s.mux.HandleFunc("/", s.notFound)
 	if cfg.UI != nil {
@@ -109,6 +112,11 @@ func New(cfg Config) *Server {
 
 // Handler returns the root handler with request logging applied.
 func (s *Server) Handler() http.Handler { return s.logged(s.mux) }
+
+// Routes returns the registered routes as "METHOD /path" patterns (the
+// catch-all not-found handlers are not listed). The OpenAPI test compares it
+// with api/openapi.yaml.
+func (s *Server) Routes() []string { return append([]string(nil), s.routes...) }
 
 // Handle registers an authenticated, rate-limited route under /v1. The
 // pattern is a Go 1.22 pattern without the prefix, for example
@@ -122,7 +130,22 @@ func (s *Server) Handle(pattern string, h http.HandlerFunc) {
 	if method != "" {
 		full = method + " " + full
 	}
+	s.routes = append(s.routes, full)
 	s.mux.Handle(full, s.protect(h))
+}
+
+// HandleFromPhase registers a route like Handle, but the route answers 404
+// like an unknown route while the applied schema phase is below phase. The
+// phase is read per request, so a migration applied later enables it without
+// a restart.
+func (s *Server) HandleFromPhase(phase int, pattern string, h http.HandlerFunc) {
+	s.Handle(pattern, func(w http.ResponseWriter, r *http.Request) {
+		if s.maxPhase(r.Context()) < phase {
+			s.notFound(w, r)
+			return
+		}
+		h(w, r)
+	})
 }
 
 // QueryContext returns a context that expires after the per-query timeout.

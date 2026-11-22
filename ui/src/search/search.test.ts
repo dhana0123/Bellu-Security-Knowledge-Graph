@@ -19,6 +19,25 @@ describe('validateFilters', () => {
   });
 });
 
+describe('EPSS and ecosystem filters', () => {
+  const v = (o: Partial<typeof emptyFilters>) => validateFilters({ ...emptyFilters, ...o });
+  it('accepts 0..1 inclusive', () => {
+    expect(v({ epssMin: '0', epssMax: '1' })).toEqual({});
+    expect(v({ epssMin: '0.5', epssMax: '.75' })).toEqual({});
+  });
+  it('rejects out of range, non-numeric and inverted bounds', () => {
+    expect(v({ epssMin: '1.01' }).epssMin).toBeDefined();
+    expect(v({ epssMax: '-0.1' }).epssMax).toBeDefined();
+    expect(v({ epssMax: 'abc' }).epssMax).toBeDefined();
+    expect(v({ epssMin: '1e-1' }).epssMin).toBeDefined();
+    expect(v({ epssMin: '0.8', epssMax: '0.2' }).epssMin).toBeDefined();
+  });
+  it('limits the ecosystem to the known list and sends params', () => {
+    expect(v({ ecosystem: 'PyPI' })).toEqual({});
+    expect(v({ ecosystem: 'pypi' }).ecosystem).toBeDefined();
+    expect(filtersToParams({ ...emptyFilters, epssMin: ' 0.1 ', ecosystem: 'npm' })).toEqual({ epssMin: '0.1', ecosystem: 'npm' });
+  });
+});
 describe('paging', () => {
   it('walks forward and back with a cursor stack', () => {
     expect(canPrev(initialPager)).toBe(false);

@@ -1,0 +1,1121 @@
+openapi: 3.0.3
+info:
+  title: Bellu Security Knowledge Graph API
+  version: 1.0.0
+  description: |
+    Read-only REST API over the BSKG graph. Hand-maintained; a unit test
+    (internal/api/openapi_test.go) fails when this file and the router's
+    registered routes differ. Response bodies are described in docs/api-shapes.md.
+    Routes of schema phase 2 and 3 (packages, attack patterns, techniques, ATLAS
+    techniques) answer 404 until their migrations are applied. The two
+    co-* routes exist only when BSKG_ENABLE_COEXPLOITATION is true.
+servers:
+  - url: /
+security:
+  - bearerAuth: []
+tags:
+  - {name: ops, description: Health, status and statistics}
+  - {name: graph, description: Graph views}
+  - {name: entities, description: Entity lookup and search}
+  - {name: analysis, description: Co-exploitation and co-affected}
+  - {name: ui, description: Embedded Client_UI}
+paths:
+  /healthz:
+    get:
+      summary: Liveness and graph connectivity (no authentication, no graph envelope)
+      tags: [ops]
+      security: []
+      responses:
+        '200':
+          description: Graph reachable and no migration pending
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: {type: string, enum: [ok]}
+        '503':
+          description: Graph unreachable (unavailable) or migrations pending (migrating)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: {type: string, enum: [unavailable, migrating]}
+  /ui:
+    get:
+      summary: Redirects to /ui/
+      tags: [ui]
+      security: []
+      responses:
+        '301':
+          description: Moved permanently to /ui/
+  /ui/:
+    get:
+      summary: Embedded Client_UI (single-page application; unknown paths return index.html)
+      tags: [ui]
+      security: []
+      responses:
+        '200':
+          description: UI file or index.html
+          content:
+            text/html:
+              schema: {type: string}
+        '404':
+          description: Missing /ui/assets/* file
+  /v1/status:
+    get:
+      summary: Build state, per-source checkpoints, queue and validation
+      tags: [ops]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Object'
+        '400':
+          $ref: '#/components/responses/E400'
+        '401':
+          $ref: '#/components/responses/E401'
+        '429':
+          $ref: '#/components/responses/E429'
+        '500':
+          $ref: '#/components/responses/E500'
+        '503':
+          $ref: '#/components/responses/E503'
+        '504':
+          $ref: '#/components/responses/E504'
+  /v1/stats:
+    get:
+      summary: Cached statistics, live sync state and source coverage
+      tags: [ops]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Stats'
+        '400':
+          $ref: '#/components/responses/E400'
+        '401':
+          $ref: '#/components/responses/E401'
+        '429':
+          $ref: '#/components/responses/E429'
+        '500':
+          $ref: '#/components/responses/E500'
+        '503':
+          $ref: '#/components/responses/E503'
+        '504':
+          $ref: '#/components/responses/E504'
+  /v1/sources:
+    get:
+      summary: Licence and attribution of every source
+      tags: [ops]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Object'
+        '400':
+          $ref: '#/components/responses/E400'
+        '401':
+          $ref: '#/components/responses/E401'
+        '429':
+          $ref: '#/components/responses/E429'
+        '500':
+          $ref: '#/components/responses/E500'
+        '503':
+          $ref: '#/components/responses/E503'
+        '504':
+          $ref: '#/components/responses/E504'
+  /v1/graph/neighborhood:
+    get:
+      summary: Nodes and edges around one node (depth 1 or 2)
+      tags: [graph]
+      parameters:
+        - $ref: '#/components/parameters/NbType'
+        - $ref: '#/components/parameters/NbId'
+        - $ref: '#/components/parameters/NbDepth'
+        - $ref: '#/components/parameters/NbLimit'
+        - $ref: '#/components/parameters/NbNodeTypes'
+        - $ref: '#/components/parameters/NbRelTypes'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Graph'
+        '400':
+          $ref: '#/components/responses/E400'
+        '401':
+          $ref: '#/components/responses/E401'
+        '404':
+          description: The start node does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/E429'
+        '500':
+          $ref: '#/components/responses/E500'
+        '503':
+          $ref: '#/components/responses/E503'
+        '504':
+          $ref: '#/components/responses/E504'
+  /v1/graph/overview:
+    get:
+      summary: Ranked or complete overview of the graph
+      tags: [graph]
+      parameters:
+        - $ref: '#/components/parameters/OverviewLimit'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Graph'
+        '400':
+          $ref: '#/components/responses/E400'
+        '401':
+          $ref: '#/components/responses/E401'
+        '429':
+          $ref: '#/components/responses/E429'
+        '500':
+          $ref: '#/components/responses/E500'
+        '503':
+          $ref: '#/components/responses/E503'
+        '504':
+          $ref: '#/components/responses/E504'
+  /v1/vulnerabilities:
+    get:
+      summary: Search vulnerabilities (keyset paging)
+      tags: [entities]
+      parameters:
+        - $ref: '#/components/parameters/Q'
+        - $ref: '#/components/parameters/PublishedFrom'
+        - $ref: '#/components/parameters/PublishedTo'
+        - $ref: '#/components/parameters/CvssV3Min'
+        - $ref: '#/components/parameters/CvssV3Max'
+        - $ref: '#/components/parameters/Exploitability'
+        - $ref: '#/components/parameters/Kev'
+        - $ref: '#/components/parameters/EpssMin'
+        - $ref: '#/components/parameters/EpssMax'
+        - $ref: '#/components/parameters/Ecosystem'
+        - $ref: '#/components/parameters/Cwe'
+        - $ref: '#/components/parameters/IncludeRejected'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VulnerabilityList'
+        '400':
+          $ref: '#/components/responses/E400'
+        '401':
+          $ref: '#/components/responses/E401'
+        '429':
+          $ref: '#/components/responses/E429'
+        '500':
+          $ref: '#/components/responses/E500'
+        '503':
+          $ref: '#/components/responses/E503'
+        '504':
+          $ref: '#/components/responses/E504'
+  /v1/vulnerabilities/{id}:
+    get:
+      summary: One vulnerability with related entities (CVE id or alias)
+      tags: [entities]
+      parameters:
+        - $ref: '#/components/parameters/VulnId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VulnerabilityDetail'
+        '400':
+          $ref: '#/components/responses/E400'
+        '401':
+          $ref: '#/components/responses/E401'
+        '404':
+          description: Vulnerability not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/E429'
+        '500':
+          $ref: '#/components/responses/E500'
+        '503':
+          $ref: '#/components/responses/E503'
+        '504':
+          $ref: '#/components/responses/E504'
+  /v1/vulnerabilities/{id}/co-exploited:
+    get:
+      summary: Vulnerabilities that share an Exploit (BSKG_ENABLE_COEXPLOITATION only)
+      tags: [analysis]
+      parameters:
+        - $ref: '#/components/parameters/VulnId'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CoList'
+        '400':
+          $ref: '#/components/responses/E400'
+        '401':
+          $ref: '#/components/responses/E401'
+        '429':
+          $ref: '#/components/responses/E429'
+        '500':
+          $ref: '#/components/responses/E500'
+        '503':
+          $ref: '#/components/responses/E503'
+        '504':
+          $ref: '#/components/responses/E504'
+  /v1/vulnerabilities/{id}/co-affected:
+    get:
+      summary: Vulnerabilities that share a Product (BSKG_ENABLE_COEXPLOITATION only)
+      tags: [analysis]
+      parameters:
+        - $ref: '#/components/parameters/VulnId'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CoList'
+        '400':
+          $ref: '#/components/responses/E400'
+        '401':
+          $ref: '#/components/responses/E401'
+        '429':
+          $ref: '#/components/responses/E429'
+        '500':
+          $ref: '#/components/responses/E500'
+        '503':
+          $ref: '#/components/responses/E503'
+        '504':
+          $ref: '#/components/responses/E504'
+  /v1/weaknesses/{cweID}:
+    get:
+      summary: One weakness
+      tags: [entities]
+      parameters:
+        - $ref: '#/components/parameters/CweID'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Object'
+        '400':
+          $ref: '#/components/responses/E400'
+        '401':
+          $ref: '#/components/responses/E401'
+        '404':
+          description: Weakness not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/E429'
+        '500':
+          $ref: '#/components/responses/E500'
+        '503':
+          $ref: '#/components/responses/E503'
+        '504':
+          $ref: '#/components/responses/E504'
+  /v1/weaknesses/{cweID}/vulnerabilities:
+    get:
+      summary: Vulnerabilities of a weakness
+      tags: [entities]
+      parameters:
+        - $ref: '#/components/parameters/CweID'
+        - $ref: '#/components/parameters/IncludeRejected'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VulnerabilityList'
+        '400':
+          $ref: '#/components/responses/E400'
+        '401':
+          $ref: '#/components/responses/E401'
+        '404':
+          description: Weakness not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/E429'
+        '500':
+          $ref: '#/components/responses/E500'
+        '503':
+          $ref: '#/components/responses/E503'
+        '504':
+          $ref: '#/components/responses/E504'
+  /v1/products/{name}:
+    get:
+      summary: One product (case-insensitive fallback)
+      tags: [entities]
+      parameters:
+        - $ref: '#/components/parameters/Name'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Object'
+        '400':
+          $ref: '#/components/responses/E400'
+        '401':
+          $ref: '#/components/responses/E401'
+        '404':
+          description: Product not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/E429'
+        '500':
+          $ref: '#/components/responses/E500'
+        '503':
+          $ref: '#/components/responses/E503'
+        '504':
+          $ref: '#/components/responses/E504'
+  /v1/products/{name}/vulnerabilities:
+    get:
+      summary: Vulnerabilities of a product
+      tags: [entities]
+      parameters:
+        - $ref: '#/components/parameters/Name'
+        - $ref: '#/components/parameters/IncludeRejected'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VulnerabilityList'
+        '400':
+          $ref: '#/components/responses/E400'
+        '401':
+          $ref: '#/components/responses/E401'
+        '404':
+          description: Product not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/E429'
+        '500':
+          $ref: '#/components/responses/E500'
+        '503':
+          $ref: '#/components/responses/E503'
+        '504':
+          $ref: '#/components/responses/E504'
+  /v1/vendors/{name}:
+    get:
+      summary: One vendor (case-insensitive fallback)
+      tags: [entities]
+      parameters:
+        - $ref: '#/components/parameters/Name'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Object'
+        '400':
+          $ref: '#/components/responses/E400'
+        '401':
+          $ref: '#/components/responses/E401'
+        '404':
+          description: Vendor not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/E429'
+        '500':
+          $ref: '#/components/responses/E500'
+        '503':
+          $ref: '#/components/responses/E503'
+        '504':
+          $ref: '#/components/responses/E504'
+  /v1/vendors/{name}/vulnerabilities:
+    get:
+      summary: Vulnerabilities of a vendor
+      tags: [entities]
+      parameters:
+        - $ref: '#/components/parameters/Name'
+        - $ref: '#/components/parameters/IncludeRejected'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VulnerabilityList'
+        '400':
+          $ref: '#/components/responses/E400'
+        '401':
+          $ref: '#/components/responses/E401'
+        '404':
+          description: Vendor not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/E429'
+        '500':
+          $ref: '#/components/responses/E500'
+        '503':
+          $ref: '#/components/responses/E503'
+        '504':
+          $ref: '#/components/responses/E504'
+  /v1/exploits/{eid}:
+    get:
+      summary: Exploit metadata (never code)
+      tags: [entities]
+      parameters:
+        - $ref: '#/components/parameters/Eid'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Object'
+        '400':
+          $ref: '#/components/responses/E400'
+        '401':
+          $ref: '#/components/responses/E401'
+        '404':
+          description: Exploit not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/E429'
+        '500':
+          $ref: '#/components/responses/E500'
+        '503':
+          $ref: '#/components/responses/E503'
+        '504':
+          $ref: '#/components/responses/E504'
+  /v1/packages/{purl}:
+    get:
+      summary: One package by URL-encoded purl without version, with vulnerabilities and repositories
+      tags: [entities]
+      description: Registered for every phase, but answers 404 like an unknown route until schema phase 2 is applied.
+      parameters:
+        - $ref: '#/components/parameters/Purl'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PackagePage'
+        '400':
+          $ref: '#/components/responses/E400'
+        '401':
+          $ref: '#/components/responses/E401'
+        '404':
+          description: Package not found, or schema phase 2 not applied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/E429'
+        '500':
+          $ref: '#/components/responses/E500'
+        '503':
+          $ref: '#/components/responses/E503'
+        '504':
+          $ref: '#/components/responses/E504'
+  /v1/attack-patterns/{capecID}:
+    get:
+      summary: One CAPEC attack pattern
+      tags: [entities]
+      description: Registered for every phase, but answers 404 like an unknown route until schema phase 3 is applied.
+      parameters:
+        - $ref: '#/components/parameters/CapecID'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttackPatternPage'
+        '400':
+          $ref: '#/components/responses/E400'
+        '401':
+          $ref: '#/components/responses/E401'
+        '404':
+          description: AttackPattern not found, or schema phase 3 not applied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/E429'
+        '500':
+          $ref: '#/components/responses/E500'
+        '503':
+          $ref: '#/components/responses/E503'
+        '504':
+          $ref: '#/components/responses/E504'
+  /v1/techniques/{attackID}:
+    get:
+      summary: One ATT&CK technique
+      tags: [entities]
+      description: Registered for every phase, but answers 404 like an unknown route until schema phase 3 is applied.
+      parameters:
+        - $ref: '#/components/parameters/AttackID'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TechniquePage'
+        '400':
+          $ref: '#/components/responses/E400'
+        '401':
+          $ref: '#/components/responses/E401'
+        '404':
+          description: Technique not found, or schema phase 3 not applied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/E429'
+        '500':
+          $ref: '#/components/responses/E500'
+        '503':
+          $ref: '#/components/responses/E503'
+        '504':
+          $ref: '#/components/responses/E504'
+  /v1/atlas-techniques/{atlasID}:
+    get:
+      summary: One ATLAS technique
+      tags: [entities]
+      description: Registered for every phase, but answers 404 like an unknown route until schema phase 3 is applied.
+      parameters:
+        - $ref: '#/components/parameters/AtlasID'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AtlasTechniquePage'
+        '400':
+          $ref: '#/components/responses/E400'
+        '401':
+          $ref: '#/components/responses/E401'
+        '404':
+          description: AtlasTechnique not found, or schema phase 3 not applied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/E429'
+        '500':
+          $ref: '#/components/responses/E500'
+        '503':
+          $ref: '#/components/responses/E503'
+        '504':
+          $ref: '#/components/responses/E504'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: API key as Authorization Bearer; never in the URL
+  parameters:
+    VulnId:
+      name: id
+      in: path
+      required: true
+      description: CVE id in any case, or an alias such as a GHSA or OSV advisory id
+      schema:
+        type: string
+    CweID:
+      name: cweID
+      in: path
+      required: true
+      description: Weakness id, for example CWE-79
+      schema:
+        type: string
+    Name:
+      name: name
+      in: path
+      required: true
+      description: Product or vendor name
+      schema:
+        type: string
+    Eid:
+      name: eid
+      in: path
+      required: true
+      description: Exploit-DB id
+      schema:
+        type: string
+    Purl:
+      name: purl
+      in: path
+      required: true
+      description: Package URL without version, URL-encoded (pkg%3Anpm%2F%2540angular%2Fcore)
+      schema:
+        type: string
+    CapecID:
+      name: capecID
+      in: path
+      required: true
+      description: CAPEC id, for example CAPEC-66
+      schema:
+        type: string
+    AttackID:
+      name: attackID
+      in: path
+      required: true
+      description: ATT&CK technique id, for example T1059.001
+      schema:
+        type: string
+    AtlasID:
+      name: atlasID
+      in: path
+      required: true
+      description: ATLAS technique id, for example AML.T0000.001
+      schema:
+        type: string
+    NbType:
+      name: type
+      in: query
+      required: true
+      description: Node label of the start node
+      schema:
+        type: string
+    NbId:
+      name: id
+      in: query
+      required: true
+      description: Key of the start node, 1 to 256 characters
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 256
+    NbDepth:
+      name: depth
+      in: query
+      required: false
+      description: Hops from the start node
+      schema:
+        type: integer
+        enum: [1, 2]
+        default: 1
+    NbLimit:
+      name: limit
+      in: query
+      required: false
+      description: Maximum number of nodes
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 300
+        default: 100
+    NbNodeTypes:
+      name: nodeTypes
+      in: query
+      required: false
+      description: Comma list of node labels to keep (at most 50)
+      schema:
+        type: string
+    NbRelTypes:
+      name: relTypes
+      in: query
+      required: false
+      description: Comma list of relationship types to follow (at most 50)
+      schema:
+        type: string
+    OverviewLimit:
+      name: limit
+      in: query
+      required: false
+      description: Maximum number of nodes
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 5000
+        default: 5000
+    Q:
+      name: q
+      in: query
+      required: false
+      description: Free text over descriptions (at most 500 characters)
+      schema:
+        type: string
+        maxLength: 500
+    PublishedFrom:
+      name: publishedFrom
+      in: query
+      required: false
+      description: ISO 8601 date or UTC timestamp
+      schema:
+        type: string
+    PublishedTo:
+      name: publishedTo
+      in: query
+      required: false
+      description: ISO 8601 date or UTC timestamp
+      schema:
+        type: string
+    CvssV3Min:
+      name: cvssV3Min
+      in: query
+      required: false
+      description: Minimum CVSS v3 base score
+      schema:
+        type: number
+        minimum: 0
+        maximum: 10
+    CvssV3Max:
+      name: cvssV3Max
+      in: query
+      required: false
+      description: Maximum CVSS v3 base score
+      schema:
+        type: number
+        minimum: 0
+        maximum: 10
+    Exploitability:
+      name: exploitability
+      in: query
+      required: false
+      description: 1 when an exploit is known, 0 otherwise
+      schema:
+        type: integer
+        enum: [0, 1]
+    Kev:
+      name: kev
+      in: query
+      required: false
+      description: "true keeps CISA KEV entries, false keeps the others"
+      schema:
+        type: boolean
+    EpssMin:
+      name: epssMin
+      in: query
+      required: false
+      description: Minimum EPSS score
+      schema:
+        type: number
+        minimum: 0
+        maximum: 1
+    EpssMax:
+      name: epssMax
+      in: query
+      required: false
+      description: Maximum EPSS score
+      schema:
+        type: number
+        minimum: 0
+        maximum: 1
+    Ecosystem:
+      name: ecosystem
+      in: query
+      required: false
+      description: Exact OSV ecosystem name (for example PyPI, npm, Go) of an affected package
+      schema:
+        type: string
+        maxLength: 100
+    Cwe:
+      name: cwe
+      in: query
+      required: false
+      description: Weakness id, for example CWE-79
+      schema:
+        type: string
+    IncludeRejected:
+      name: includeRejected
+      in: query
+      required: false
+      description: Include rejected CVEs
+      schema:
+        type: boolean
+        default: false
+    Limit:
+      name: limit
+      in: query
+      required: false
+      description: Page size or maximum number of items
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 500
+        default: 50
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      description: Opaque cursor from nextCursor; bound to the same filters
+      schema:
+        type: string
+  responses:
+    E400:
+      description: Invalid parameter or API key in the URL (invalid_parameter, key_in_url)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    E401:
+      description: Missing, malformed, unknown, or revoked API key (unauthorized)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    E429:
+      description: Per-key rate limit exceeded (rate_limited); Retry-After header
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    E500:
+      description: Unexpected failure (internal)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    E503:
+      description: Graph store unreachable or migrations pending (unavailable, migrating)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    E504:
+      description: Query time limit exceeded (timeout)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  schemas:
+    Error:
+      type: object
+      required: [error, graph]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: {type: string}
+            message: {type: string}
+            parameter: {type: string}
+        graph: {$ref: '#/components/schemas/GraphMeta'}
+    GraphMeta:
+      type: object
+      description: Envelope present in every /v1 response
+      properties:
+        version: {type: string}
+        buildState: {type: string}
+        buildMode: {type: string, nullable: true}
+        stale: {type: boolean}
+        sources:
+          type: object
+          additionalProperties: true
+    Object:
+      type: object
+      description: Entity or status object plus the graph envelope; see docs/api-shapes.md
+      additionalProperties: true
+    Stats:
+      type: object
+      description: See docs/api-shapes.md
+      properties:
+        generatedAt: {type: string, format: date-time}
+        statsStale: {type: boolean}
+        labels: {type: array, items: {type: object, additionalProperties: true}}
+        relationships: {type: array, items: {type: object, additionalProperties: true}}
+        kevCount: {type: integer, description: Vulnerabilities with kev = true}
+        epssHigh: {type: integer, description: Vulnerabilities with epssScore >= 0.1}
+        coverage: {type: array, items: {type: object, additionalProperties: true}}
+      additionalProperties: true
+    Graph:
+      type: object
+      properties:
+        nodes: {type: array, items: {type: object, additionalProperties: true}}
+        edges: {type: array, items: {type: object, additionalProperties: true}}
+        truncated: {type: boolean}
+        total: {type: object, additionalProperties: true}
+      additionalProperties: true
+    VulnerabilityList:
+      type: object
+      properties:
+        items: {type: array, items: {type: object, additionalProperties: true}}
+        limit: {type: integer}
+        nextCursor: {type: string}
+    CoList:
+      type: object
+      properties:
+        found: {type: boolean}
+        limit: {type: integer}
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              cveID: {type: string}
+              shared: {type: integer}
+              v3baseScore: {type: number, nullable: true}
+        skippedProducts: {type: integer}
+    PackageRef:
+      type: object
+      properties:
+        purl: {type: string}
+        ecosystem: {type: string, nullable: true}
+        name: {type: string, nullable: true}
+        introduced: {type: string, nullable: true}
+        fixed: {type: string, nullable: true}
+        lastAffected: {type: string, nullable: true}
+        affectedRanges: {type: array, items: {type: string}}
+    VulnerabilityDetail:
+      type: object
+      properties:
+        vulnerability: {type: object, additionalProperties: true}
+        sources: {type: array, items: {type: string}}
+        provenance: {type: array, items: {type: object, additionalProperties: true}}
+        weaknesses: {type: array, items: {type: string}}
+        exploits: {type: array, items: {type: object, additionalProperties: true}}
+        products: {type: array, items: {type: object, additionalProperties: true}}
+        domains: {type: array, items: {type: string}}
+        repositories: {type: array, items: {type: object, additionalProperties: true}}
+        fixCommits: {type: array, items: {type: object, additionalProperties: true}}
+        packages:
+          type: array
+          maxItems: 100
+          items: {$ref: '#/components/schemas/PackageRef'}
+        attackPatterns:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            properties:
+              capecID: {type: string}
+              name: {type: string, nullable: true}
+              viaWeakness: {type: string}
+        techniques:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            properties:
+              attackID: {type: string}
+              name: {type: string, nullable: true}
+              viaAttackPattern: {type: string}
+    PackagePage:
+      type: object
+      properties:
+        package: {type: object, additionalProperties: true}
+        vulnerabilities:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            properties:
+              cveID: {type: string}
+              publishedDate: {type: string, nullable: true}
+              v3baseScore: {type: number, nullable: true}
+        repositories:
+          type: array
+          items:
+            type: object
+            properties:
+              url: {type: string}
+              host: {type: string, nullable: true}
+    AttackPatternPage:
+      type: object
+      properties:
+        attackPattern: {type: object, additionalProperties: true}
+        weaknesses:
+          type: array
+          items:
+            type: object
+            properties:
+              cweID: {type: string}
+              cweName: {type: string, nullable: true}
+        techniques:
+          type: array
+          items:
+            type: object
+            properties:
+              attackID: {type: string}
+              name: {type: string, nullable: true}
+    TechniquePage:
+      type: object
+      properties:
+        technique: {type: object, additionalProperties: true}
+        attackPatterns:
+          type: array
+          items:
+            type: object
+            properties:
+              capecID: {type: string}
+              name: {type: string, nullable: true}
+        atlasTechniques:
+          type: array
+          items:
+            type: object
+            properties:
+              atlasID: {type: string}
+              name: {type: string, nullable: true}
+    AtlasTechniquePage:
+      type: object
+      properties:
+        atlasTechnique: {type: object, additionalProperties: true}
+        techniques:
+          type: array
+          items:
+            type: object
+            properties:
+              attackID: {type: string}
+              name: {type: string, nullable: true}

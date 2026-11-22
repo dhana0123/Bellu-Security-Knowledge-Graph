@@ -83,6 +83,8 @@ Cached for `BSKG_STATS_TTL` (default 5m). `sync`, `coverage`, `buildState`, `bui
   "topVendors": [{"key": "acme", "count": 3}],
   "topProducts": [{"key": "widget", "count": 3}],
   "exploitedShare": {"exploited": 2, "total": 6, "ratio": 0.3333},
+  "kevCount": 11,                     // Vulnerabilities with kev = true
+  "epssHigh": 5,                      // Vulnerabilities with epssScore >= 0.1
   "sync": [ /* same objects as /v1/status "sources"; null if unavailable */ ],
   "coverage": [                                              // one per enabled source, in configured order; [] if the live read failed
     {"source": "nvd",
@@ -104,20 +106,37 @@ get totals is logged and does not fail the run. The in-graph counts are read per
 | `nvd` | `cves` (all CVEs), `cvesNotRejected` (`noRejected` query) | `cves` (Vulnerability nodes), `cvesNotRejected` (Vulnerability nodes whose `rejected` is not true) |
 | `cwe` | `weaknesses`, `categories` of the last parsed catalog (views are not parsed) | `weaknesses` (Weakness nodes) |
 | `exploitdb` | `rows`, `rowsWithCve` (rows with at least one valid CVE id), `invalidRows` | `exploits` (Exploit nodes) |
+| `kev` | adapter totals, if recorded | `entries` (Vulnerabilities with `kev = true`) |
+| `epss` | adapter totals, if recorded | `rows` (Vulnerabilities with an `epssScore`) |
+| `osv` | adapter totals, if recorded | `advisories` (Vulnerabilities whose `sources` contain `osv`) |
+| `ghsa` | adapter totals, if recorded | `advisories` (Vulnerabilities whose `sources` contain `ghsa`) |
+| `attack` | adapter totals, if recorded | `techniques` (Technique nodes; schema phase 3) |
+| `atlas` | adapter totals, if recorded | `techniques` (AtlasTechnique nodes; schema phase 3) |
+| `capec` | adapter totals, if recorded | `attackPatterns` (AttackPattern nodes; schema phase 3) |
 
 Only Exploit-DB rows with a CVE that exists in the graph become Exploit nodes, so compare `exploits` with
 `rowsWithCve`, not with `rows`. A CWE run that starts from a process that never parsed the catalog records no
 totals.
 
+`kevCount` and `epssHigh` are part of the cached result. Every in-graph count is one bounded count query. The
+`attack`, `atlas` and `capec` counts need schema phase 3; below it `inGraph` is `{}` and the query does not run.
+`labels` and `relationships` list only the labels and types of the applied schema phase (`Package`,
+`AFFECTS_PACKAGE`, `HOSTED_IN` from phase 2; `AttackPattern`, `Technique`, `AtlasTechnique`,
+`RELATED_ATTACK_PATTERN`, `MAPS_TO_TECHNIQUE`, `ADAPTED_FROM` from phase 3).
+
 Failure with no cached result: 504 on timeout, 500 otherwise.
 
 ## GET /v1/graph/neighborhood
 
-Query: `type` (required: `Vulnerability`, `Exploit`, `Author`, `Weakness`, `Domain`, `Product`, `Vendor`, `Repository`, `FixCommit`),
+Query: `type` (required: `Vulnerability`, `Exploit`, `Author`, `Weakness`, `Domain`, `Product`, `Vendor`, `Repository`, `FixCommit`;
+`Package` from schema phase 2; `AttackPattern`, `Technique`, `AtlasTechnique` from phase 3),
 `id` (required, 1 to 256 chars; the plain key, CVE ids are upper-cased), `depth` (1 or 2, default 1),
 `limit` (1 to 300, default 100), `nodeTypes` and `relTypes` (comma lists, at most 50 entries,
 known names only; omitted or empty means no restriction).
-`relTypes`: `WRITES, EXPLOITS, EXAMPLE_OF, REFERS_TO, AFFECTS, BELONGS_TO, CHILD_OF, REFERS_TO_REPOSITORY, HAS_FIX_COMMIT, FIXES`.
+`relTypes`: `WRITES, EXPLOITS, EXAMPLE_OF, REFERS_TO, AFFECTS, BELONGS_TO, CHILD_OF, REFERS_TO_REPOSITORY, HAS_FIX_COMMIT, FIXES`;
+phase 2 adds `AFFECTS_PACKAGE, HOSTED_IN`; phase 3 adds `RELATED_ATTACK_PATTERN, MAPS_TO_TECHNIQUE, ADAPTED_FROM`.
+A type or relationship of a phase that is not applied is `400 invalid_parameter`. Node `key` is the label's key:
+`purl` (Package), `capecID`, `attackID`, `atlasID`.
 Node types `Repository` (key `url`, properties `host`) and `FixCommit` (key `fcKey`, properties `repoUrl`, `sha`, `url`)
 appear in `/v1/stats`, neighborhood and overview like the other labels.
 
@@ -161,7 +180,7 @@ requests share one run, and the previous result is served when a recomputation f
 
 Nodes and edges have the neighborhood shape: ids are `Label:key`, properties are scalars only with
 strings cut to 500 chars, `viewID` appears on `CHILD_OF` only, and both lists are sorted by `id`.
-Only phase-1 domain labels are included (never bookkeeping labels), and relationships with
+Only domain labels of the applied schema phase are included (never bookkeeping labels), and relationships with
 `removed = true` are left out.
 
 - **Whole graph.** When the phase-1 domain graph has at most `limit` nodes, every node and every
@@ -171,20 +190,48 @@ Only phase-1 domain labels are included (never bookkeeping labels), and relation
   order, each Vulnerability is added with its directly connected nodes (at most 500 per Vulnerability, in
   `Label:key` order, nodes already selected are skipped) until `limit` nodes are selected. The last
   Vulnerability may get only some of its neighbours. All relationships among the selected nodes follow.
-  `total` is the number of phase-1 domain nodes and relationships in the store (relationship counts include
+  `total` is the number of domain nodes of the applied phase and relationships in the store (relationship counts include
   ones marked removed).
 - The edge list is cut at `limit * 5` edges. When that happens `truncated` is true as well.
 
 Failure with no cached result: 504 on timeout, 503 when the store is unreachable, 500 otherwise.
 
-## Entity routes (already present)
-
-- `GET /v1/vulnerabilities?q=&publishedFrom=&publishedTo=&cvssV3Min=&cvssV3Max=&exploitability=0|1&kev=&cwe=&includeRejected=&limit=&cursor=`
-  returns `{"items":[{"cveID","publishedDate","description","v3baseScore","v3baseSeverity","exploitability","kev","sources"}],
-  "limit":50,"nextCursor":"..."}` (`nextCursor` absent on the last page). Cursors are opaque and bound to the filters.
-- `GET /v1/vulnerabilities/{id}` returns `{"vulnerability":{...},"sources":[],"provenance":[],"weaknesses":[],"exploits":[],"products":[],"domains":[],"repositories":[],"fixCommits":[]}`.
+## Entity routes
+- `GET /v1/vulnerabilities?q=&publishedFrom=&publishedTo=&cvssV3Min=&cvssV3Max=&exploitability=0|1&kev=&epssMin=&epssMax=&ecosystem=&cwe=&includeRejected=&limit=&cursor=`
+  returns `{"items":[{"cveID","publishedDate","description","v3baseScore","v3baseSeverity","exploitability","kev","epssScore","sources"}],
+  "limit":50,"nextCursor":"..."}` (`nextCursor` absent on the last page). Cursors are opaque and bound to all filters,
+  including `epssMin`, `epssMax` and `ecosystem`. `kev` is `true`/`false` and `epssScore` a number, or `null` when no source set them.
+  - `kev=true|false`: `false` also keeps vulnerabilities without a `kev` value.
+  - `epssMin`, `epssMax`: numbers from 0 to 1 on `epssScore`; vulnerabilities without a score never match.
+    Anything else gives `400 invalid_parameter` naming the parameter; `epssMin` greater than `epssMax` names `epssMin`.
+  - `ecosystem`: exact OSV ecosystem name (`PyPI`, `npm`, `Go`, `GitHub Actions`; at most 100 characters). Keeps
+    vulnerabilities with an `AFFECTS_PACKAGE` (not marked removed) to a `Package` of that ecosystem. Before schema
+    phase 2 it matches nothing (empty `items`).
+- `GET /v1/vulnerabilities/{id}` returns `{"vulnerability":{...},"sources":[],"provenance":[],"weaknesses":[],"exploits":[],"products":[],"domains":[],"repositories":[],"fixCommits":[],"packages":[],"attackPatterns":[],"techniques":[]}`.
   `repositories` is `[{"url","host"}]` and `fixCommits` is `[{"sha","repoUrl","url"}]` (`url` is the NVD reference
   URL of the commit); both are empty lists when the CVE has none.
+  KEV, EPSS, OSV and GHSA data stay inside `vulnerability` as properties: `kev`, `kevDateAdded`, `kevDueDate`,
+  `kevRansomwareUse`, `kevVulnerabilityName`, `epssScore`, `epssPercentile`, `epssDate`, `osv*`, `ghsa*`, `aliases`.
+  The three lists below are always present: empty when there is nothing or when their schema phase is not applied.
+  - `packages` (phase 2, at most 100, ordered by `purl`): `[{"purl","ecosystem","name","introduced","fixed","lastAffected","affectedRanges":[...]}]`
+    from `AFFECTS_PACKAGE` relationships not marked removed. `ecosystem` and `name` come from the `Package`, the rest from the
+    relationship. A missing string is `null`; `affectedRanges` is always a list.
+  - `attackPatterns` (phase 3, at most 100, distinct, ordered by `capecID`): `[{"capecID","name","viaWeakness":"CWE-n"}]`
+    through `(Vulnerability)-[:EXAMPLE_OF]->(Weakness)-[:RELATED_ATTACK_PATTERN]->(AttackPattern)`. When several
+    weaknesses lead to one pattern, `viaWeakness` is the lowest `cweID`.
+  - `techniques` (phase 3, at most 100, distinct, ordered by `attackID`): `[{"attackID","name","viaAttackPattern":"CAPEC-n"}]`
+    through `MAPS_TO_TECHNIQUE` from those attack patterns (the lowest `capecID` when several lead to one technique).
+- `GET /v1/packages/{purl}` (phase 2): `{"package":{"purl","ecosystem","name",...},"vulnerabilities":[{"cveID","publishedDate","v3baseScore"}],
+  "repositories":[{"url","host"}],"sources":[],"provenance":[]}`. `{purl}` is the package URL without version, URL-encoded as
+  one path segment (`pkg:npm/%40angular/core` is `pkg%3Anpm%2F%2540angular%2Fcore`); a purl with a version or qualifiers is
+  reduced to its key. `vulnerabilities` is cut at 100 (ordered by `cveID`, relationships marked removed left out).
+- `GET /v1/attack-patterns/{capecID}` (phase 3): `{"attackPattern":{...},"weaknesses":[{"cweID","cweName"}],"techniques":[{"attackID","name"}],"sources":[],"provenance":[]}`.
+  `{capecID}` is `CAPEC-66` in any case or with leading zeros.
+- `GET /v1/techniques/{attackID}` (phase 3): `{"technique":{...},"attackPatterns":[{"capecID","name"}],"atlasTechniques":[{"atlasID","name"}],"sources":[],"provenance":[]}`.
+- `GET /v1/atlas-techniques/{atlasID}` (phase 3): `{"atlasTechnique":{...},"techniques":[{"attackID","name"}],"sources":[],"provenance":[]}`.
+  The lists of these three routes are cut at 100. A missing entity is `404 not_found` with the message
+  `<Package|AttackPattern|Technique|AtlasTechnique> <id> not found`. A route of a phase that is not applied answers like an
+  unknown route (`404`, `no such route`); the phase is read from the applied migrations and refreshed every `MetaCacheTTL`.
 - `GET /v1/weaknesses/{cweID}`, `/v1/products/{name}`, `/v1/vendors/{name}`, `/v1/exploits/{eid}` return
   `{"weakness"|"product"|"vendor"|"exploit": {...}, ...}`; the three list routes `/v1/{weaknesses|products|vendors}/{key}/vulnerabilities`
   return `{"items":[{"cveID","publishedDate","v3baseScore"}],"limit","nextCursor?"}`.
@@ -227,3 +274,9 @@ under `assets/` get `Cache-Control: public, max-age=31536000, immutable`, everyt
 A missing `/ui/assets/*` file is 404; any other unknown path returns `index.html` with 200 (client routing).
 Every response has a strict Content-Security-Policy (`script-src 'self'`, `style-src 'self'`,
 `connect-src 'self'`, `img-src 'self' data:`, no inline script or style), `nosniff`, and `Referrer-Policy: no-referrer`.
+
+## OpenAPI
+`api/openapi.yaml` (OpenAPI 3.0.3) is maintained by hand and describes every route, its parameters and status codes.
+`go test ./internal/api` parses it and compares it with the routes the router registers (server built with every phase
+applied and co-exploitation enabled); a route missing on either side fails the test. Add a path to the file whenever you
+register a route.

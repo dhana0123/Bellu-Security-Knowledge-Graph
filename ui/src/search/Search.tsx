@@ -8,7 +8,7 @@ import { useRequest } from '../common/useRequest';
 import { Results } from './Results';
 import { canPrev, currentCursor, goNext, goPrev, initialPager } from './paging';
 import type { PagerState } from './paging';
-import { emptyFilters, filtersToParams, validateFilters } from './validation';
+import { ECOSYSTEMS, emptyFilters, filtersToParams, validateFilters } from './validation';
 import type { FilterErrors } from './validation';
 
 const PAGE_SIZE = 50;
@@ -42,7 +42,7 @@ export function Search() {
     setPager(initialPager);
   }
 
-  function field(k: 'q' | 'publishedFrom' | 'publishedTo' | 'cvssV3Min' | 'cvssV3Max' | 'cwe', text: string, hint?: string) {
+  function field(k: 'q' | 'publishedFrom' | 'publishedTo' | 'cvssV3Min' | 'cvssV3Max' | 'cwe' | 'epssMin' | 'epssMax', text: string, hint?: string) {
     return (
       <div>
         <label htmlFor={`f-${k}`} className={label}>
@@ -78,6 +78,21 @@ export function Search() {
           {field('cvssV3Min', 'CVSS v3 minimum', '0.0')}
           {field('cvssV3Max', 'CVSS v3 maximum', '10.0')}
           {field('cwe', 'Weakness (CWE)', 'CWE-79')}
+          {field('epssMin', 'EPSS minimum', '0 to 1')}
+          {field('epssMax', 'EPSS maximum', '0 to 1')}
+          <div>
+            <label htmlFor="f-eco" className={label}>
+              Ecosystem
+            </label>
+            <select id="f-eco" className={input} value={form.ecosystem} onChange={(e) => set('ecosystem', e.target.value)}>
+              <option value="">Any</option>
+              {ECOSYSTEMS.map((x) => (
+                <option key={x} value={x}>
+                  {x}
+                </option>
+              ))}
+            </select>
+          </div>
           <div>
             <label htmlFor="f-expl" className={label}>
               Exploitability

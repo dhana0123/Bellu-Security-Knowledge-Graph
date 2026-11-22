@@ -1,6 +1,7 @@
 import { matchRoutes } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
-import { graphPath } from './cve/links';
+import { atlasTechniquePath, graphPath, packagePath, techniquePath } from './cve/links';
+import { AtlasTechniquePage, AttackPatternPage, PackagePage, TechniquePage } from './entities/EntityPages';
 import { GraphView } from './graph/GraphView';
 import { Search } from './search/Search';
 import { appRoutes } from './routes';
@@ -30,6 +31,15 @@ describe('routes', () => {
     expect(l.params).toMatchObject({ type: 'FixCommit', id: key });
     const r = leaf(graphPath('Repository', 'https://github.com/o/r'));
     expect(r.params).toMatchObject({ type: 'Repository', id: 'https://github.com/o/r' });
+  });
+  it('decodes encoded purls and ids in entity routes', () => {
+    const purl = 'pkg:golang/github.com/o/r@v1.2.3?type=x#sub';
+    const p = leaf(packagePath(purl));
+    expect(p.type).toBe(PackagePage);
+    expect(p.params).toMatchObject({ purl });
+    expect(leaf('/attack-pattern/CAPEC-66')).toMatchObject({ type: AttackPatternPage, params: { id: 'CAPEC-66' } });
+    expect(leaf(techniquePath('T1059.001'))).toMatchObject({ type: TechniquePage, params: { id: 'T1059.001' } });
+    expect(leaf(atlasTechniquePath('AML.T0000'))).toMatchObject({ type: AtlasTechniquePage, params: { id: 'AML.T0000' } });
   });
   it('renders Search at /search', () => expect(leaf('/search').type).toBe(Search));
   it('renders the overview for unknown paths', () => expect(leaf('/nope').type).toBe(GraphView));

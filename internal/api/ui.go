@@ -40,6 +40,7 @@ func newUIHandler(files fs.FS) *uiHandler {
 
 func (s *Server) mountUI(files fs.FS) {
 	h := newUIHandler(files)
+	s.routes = append(s.routes, "GET /ui", "GET /ui/")
 	s.mux.HandleFunc("/ui", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/ui/", http.StatusMovedPermanently)
 	})

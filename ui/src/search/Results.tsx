@@ -1,6 +1,7 @@
 import { Link } from 'react-router';
 import type { VulnerabilityRow } from '../api/types';
 import { link, table, td, th } from '../common/classes';
+import { KevBadge } from '../common/KevBadge';
 import { SeverityBadge } from '../common/SeverityBadge';
 import { truncate } from '../common/text';
 
@@ -13,6 +14,7 @@ export function Results({ items, page }: { items: VulnerabilityRow[]; page: numb
             <th scope="col" className={th}>CVE</th>
             <th scope="col" className={th}>Published</th>
             <th scope="col" className={th}>CVSS v3</th>
+            <th scope="col" className={th}>EPSS</th>
             <th scope="col" className={th}>Exploitability</th>
             <th scope="col" className={th}>Description</th>
           </tr>
@@ -24,11 +26,13 @@ export function Results({ items, page }: { items: VulnerabilityRow[]; page: numb
                 <Link className={link} to={`/cve/${encodeURIComponent(r.cveID)}`}>
                   {r.cveID}
                 </Link>
+                {r.kev === true && <KevBadge />}
               </td>
               <td className={`${td} whitespace-nowrap`}>{r.publishedDate ?? ''}</td>
               <td className={`${td} whitespace-nowrap`}>
                 <SeverityBadge score={r.v3baseScore} />
               </td>
+              <td className={`${td} whitespace-nowrap`}>{typeof r.epssScore === 'number' ? r.epssScore.toFixed(3) : ''}</td>
               <td className={td}>{r.exploitability ?? ''}</td>
               <td className={td}>{truncate(r.description ?? '', 200)}</td>
             </tr>

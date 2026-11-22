@@ -91,7 +91,7 @@ RETURN properties(e) AS props,
 
 	// Search without free text: order publishedDate DESC, cveID DESC.
 	// Parameters: publishedFrom, publishedTo (date or null), cvssV3Min,
-	// cvssV3Max, exploitability, kev, cwe (null = no filter), includeRejected,
+	// cvssV3Max, exploitability, kev, epssMin, epssMax, ecosystem, cwe (null = no filter), includeRejected,
 	// afterKey (date) and afterID (keyset cursor, null on the first page), limit.
 	cypherSearch = `
 MATCH (v:Vulnerability)
@@ -103,11 +103,16 @@ WHERE ($includeRejected OR coalesce(v.rejected, false) = false)
   AND ($cvssV3Max IS NULL OR v.v3baseScore <= $cvssV3Max)
   AND ($exploitability IS NULL OR v.exploitability = $exploitability)
   AND ($kev IS NULL OR coalesce(v.kev, false) = $kev)
+  AND ($epssMin IS NULL OR v.epssScore >= $epssMin)
+  AND ($epssMax IS NULL OR v.epssScore <= $epssMax)
+  AND ($ecosystem IS NULL OR EXISTS {
+    (v)-[ar:AFFECTS_PACKAGE]->(ap:Package)
+    WHERE ap.ecosystem = $ecosystem AND coalesce(ar.removed, false) = false })
   AND ($cwe IS NULL OR EXISTS { (v)-[:EXAMPLE_OF]->(:Weakness {cweID: $cwe}) })
   AND ($afterID IS NULL OR sk < $afterKey OR (sk = $afterKey AND v.cveID < $afterID))
 RETURN v.cveID AS cveID, v.publishedDate AS publishedDate, v.description AS description,
   v.v3baseScore AS v3baseScore, v.v3baseSeverity AS v3baseSeverity,
-  v.exploitability AS exploitability, v.kev AS kev, v.sources AS sources, sk AS sortKey
+  v.exploitability AS exploitability, v.kev AS kev, v.epssScore AS epssScore, v.sources AS sources, sk AS sortKey
 ORDER BY sk DESC, v.cveID DESC LIMIT $limit`
 
 	// Search with free text: order score DESC, cveID DESC. $q is a
@@ -122,11 +127,16 @@ WHERE ($includeRejected OR coalesce(v.rejected, false) = false)
   AND ($cvssV3Max IS NULL OR v.v3baseScore <= $cvssV3Max)
   AND ($exploitability IS NULL OR v.exploitability = $exploitability)
   AND ($kev IS NULL OR coalesce(v.kev, false) = $kev)
+  AND ($epssMin IS NULL OR v.epssScore >= $epssMin)
+  AND ($epssMax IS NULL OR v.epssScore <= $epssMax)
+  AND ($ecosystem IS NULL OR EXISTS {
+    (v)-[ar:AFFECTS_PACKAGE]->(ap:Package)
+    WHERE ap.ecosystem = $ecosystem AND coalesce(ar.removed, false) = false })
   AND ($cwe IS NULL OR EXISTS { (v)-[:EXAMPLE_OF]->(:Weakness {cweID: $cwe}) })
   AND ($afterID IS NULL OR score < $afterKey OR (score = $afterKey AND v.cveID < $afterID))
 RETURN v.cveID AS cveID, v.publishedDate AS publishedDate, v.description AS description,
   v.v3baseScore AS v3baseScore, v.v3baseSeverity AS v3baseSeverity,
-  v.exploitability AS exploitability, v.kev AS kev, v.sources AS sources, score AS sortKey
+  v.exploitability AS exploitability, v.kev AS kev, v.epssScore AS epssScore, v.sources AS sources, score AS sortKey
 ORDER BY score DESC, v.cveID DESC LIMIT $limit`
 
 	// Co-exploitation and co-affected, computed at query time; nothing is
@@ -224,6 +234,64 @@ RETURN count(v) AS cves, count(CASE WHEN coalesce(v.rejected, false) = false THE
 	cypherCoverageWeaknesses = `MATCH (w:Weakness) RETURN count(w) AS weaknesses`
 	cypherCoverageExploits   = `MATCH (e:Exploit) RETURN count(e) AS exploits`
 
+	// Phase 2: packages. The vulnerability detail reads AFFECTS_PACKAGE
+	// (relationships marked removed are left out); the package page lists the
+	// vulnerabilities and the repositories that host it.
+	cypherVulnerabilityPackages = `
+MATCH (v:Vulnerability {cveID: $id})-[r:AFFECTS_PACKAGE]->(p:Package)
+WHERE coalesce(r.removed, false) = false
+RETURN p.purl AS purl, p.ecosystem AS ecosystem, p.name AS name,
+  r.introduced AS introduced, r.fixed AS fixed, r.lastAffected AS lastAffected,
+  r.affectedRanges AS affectedRanges
+ORDER BY purl ASC LIMIT $limit`
+	cypherPackageByPurl = `
+MATCH (p:Package {purl: $id})
+RETURN properties(p) AS props,
+  [(p)-[:HOSTED_IN]->(rp:Repository) | {url: rp.url, host: rp.host}][0..$limit] AS repositories`
+	cypherPackageVulns = `
+MATCH (v:Vulnerability)-[r:AFFECTS_PACKAGE]->(:Package {purl: $id})
+WHERE coalesce(r.removed, false) = false
+RETURN v.cveID AS cveID, v.publishedDate AS publishedDate, v.v3baseScore AS v3baseScore
+ORDER BY v.cveID ASC LIMIT $limit`
+
+	// Phase 3: attack knowledge. Attack patterns reach a vulnerability through
+	// its weaknesses; techniques through those attack patterns.
+	cypherVulnerabilityAttackPatterns = `
+MATCH (:Vulnerability {cveID: $id})-[:EXAMPLE_OF]->(w:Weakness)-[:RELATED_ATTACK_PATTERN]->(ap:AttackPattern)
+WITH ap, min(w.cweID) AS viaWeakness
+RETURN ap.capecID AS capecID, ap.name AS name, viaWeakness
+ORDER BY capecID ASC LIMIT $limit`
+	cypherVulnerabilityTechniques = `
+MATCH (:Vulnerability {cveID: $id})-[:EXAMPLE_OF]->(:Weakness)-[:RELATED_ATTACK_PATTERN]->(ap:AttackPattern)-[:MAPS_TO_TECHNIQUE]->(t:Technique)
+WITH t, min(ap.capecID) AS viaAttackPattern
+RETURN t.attackID AS attackID, t.name AS name, viaAttackPattern
+ORDER BY attackID ASC LIMIT $limit`
+	cypherAttackPatternByID = `
+MATCH (ap:AttackPattern {capecID: $id})
+RETURN properties(ap) AS props,
+  [(w:Weakness)-[:RELATED_ATTACK_PATTERN]->(ap) | {cweID: w.cweID, cweName: w.cweName}][0..$limit] AS weaknesses,
+  [(ap)-[:MAPS_TO_TECHNIQUE]->(t:Technique) | {attackID: t.attackID, name: t.name}][0..$limit] AS techniques`
+	cypherTechniqueByID = `
+MATCH (t:Technique {attackID: $id})
+RETURN properties(t) AS props,
+  [(ap:AttackPattern)-[:MAPS_TO_TECHNIQUE]->(t) | {capecID: ap.capecID, name: ap.name}][0..$limit] AS attackPatterns,
+  [(a:AtlasTechnique)-[:ADAPTED_FROM]->(t) | {atlasID: a.atlasID, name: a.name}][0..$limit] AS atlasTechniques`
+	cypherAtlasTechniqueByID = `
+MATCH (a:AtlasTechnique {atlasID: $id})
+RETURN properties(a) AS props,
+  [(a)-[:ADAPTED_FROM]->(t:Technique) | {attackID: t.attackID, name: t.name}][0..$limit] AS techniques`
+
+	// Vulnerability-level counts for /v1/stats (one bounded query each).
+	cypherStatsKevCount  = `MATCH (v:Vulnerability) WHERE v.kev = true RETURN count(v) AS n`
+	cypherStatsEpssHigh  = `MATCH (v:Vulnerability) WHERE v.epssScore >= 0.1 RETURN count(v) AS n`
+	cypherCoverageKEV    = `MATCH (v:Vulnerability) WHERE v.kev = true RETURN count(v) AS entries`
+	cypherCoverageEPSS   = `MATCH (v:Vulnerability) WHERE v.epssScore IS NOT NULL RETURN count(v) AS rows`
+	cypherCoverageOSV    = `MATCH (v:Vulnerability) WHERE 'osv' IN v.sources RETURN count(v) AS advisories`
+	cypherCoverageGHSA   = `MATCH (v:Vulnerability) WHERE 'ghsa' IN v.sources RETURN count(v) AS advisories`
+	cypherCoverageAttack = `MATCH (t:Technique) RETURN count(t) AS techniques`
+	cypherCoverageAtlas  = `MATCH (t:AtlasTechnique) RETURN count(t) AS techniques`
+	cypherCoverageCAPEC  = `MATCH (p:AttackPattern) RETURN count(p) AS attackPatterns`
+
 	// Sources list (no graph access beyond the envelope; kept for completeness
 	// of last-success reads).
 	cypherSourceLastSuccess = cypherLastRuns
@@ -244,6 +312,12 @@ var allQueries = []string{
 	cypherStatusBuild, cypherStatusJobs, cypherMigrationVersion,
 	cypherStatsScan, cypherStatsTopWeaknesses, cypherStatsTopVendors, cypherStatsTopProducts,
 	cypherCoverageVulns, cypherCoverageWeaknesses, cypherCoverageExploits,
+	cypherVulnerabilityPackages, cypherPackageByPurl, cypherPackageVulns,
+	cypherVulnerabilityAttackPatterns, cypherVulnerabilityTechniques,
+	cypherAttackPatternByID, cypherTechniqueByID, cypherAtlasTechniqueByID,
+	cypherStatsKevCount, cypherStatsEpssHigh,
+	cypherCoverageKEV, cypherCoverageEPSS, cypherCoverageOSV, cypherCoverageGHSA,
+	cypherCoverageAttack, cypherCoverageAtlas, cypherCoverageCAPEC,
 }
 
 // Row is one result record as a column map.

@@ -46,6 +46,11 @@ func Routes(s *Server, q func(ctx context.Context, query string, params map[stri
 	s.Handle("GET /vendors/{name}", e.vendor)
 	s.Handle("GET /exploits/{eid}", e.exploit)
 	s.Handle("GET /sources", e.sourcesHandler)
+	// Entities of the later schema phases answer 404 until their phase is applied.
+	s.HandleFromPhase(2, "GET /packages/{purl}", e.pkg)
+	s.HandleFromPhase(3, "GET /attack-patterns/{capecID}", e.attackPattern)
+	s.HandleFromPhase(3, "GET /techniques/{attackID}", e.technique)
+	s.HandleFromPhase(3, "GET /atlas-techniques/{atlasID}", e.atlasTechnique)
 }
 
 var (
@@ -194,16 +199,27 @@ func (e *Entities) vulnerability(w http.ResponseWriter, r *http.Request) {
 	}
 	row := rows[0]
 	props, sources, prov := splitProps(asProps(row["props"]))
+	cve, _ := props["cveID"].(string)
+	if cve == "" {
+		cve = id
+	}
+	packages, attackPatterns, techniques, ok := e.vulnerabilityLinks(w, r, cve)
+	if !ok {
+		return
+	}
 	e.s.WriteJSON(w, r, http.StatusOK, map[string]any{
-		"vulnerability": props,
-		"sources":       sources,
-		"provenance":    prov,
-		"weaknesses":    asList(row["weaknesses"]),
-		"exploits":      asList(row["exploits"]),
-		"products":      asList(row["products"]),
-		"domains":       asList(row["domains"]),
-		"repositories":  asList(row["repositories"]),
-		"fixCommits":    asList(row["fixCommits"]),
+		"packages":       packages,
+		"attackPatterns": attackPatterns,
+		"techniques":     techniques,
+		"vulnerability":  props,
+		"sources":        sources,
+		"provenance":     prov,
+		"weaknesses":     asList(row["weaknesses"]),
+		"exploits":       asList(row["exploits"]),
+		"products":       asList(row["products"]),
+		"domains":        asList(row["domains"]),
+		"repositories":   asList(row["repositories"]),
+		"fixCommits":     asList(row["fixCommits"]),
 	})
 }
 

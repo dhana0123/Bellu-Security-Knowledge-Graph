@@ -14,7 +14,7 @@ describe('colour and caption mapping', () => {
     for (const t of ['Vulnerability', 'Exploit', 'Author', 'Weakness', 'Product', 'Vendor', 'Domain']) {
       expect(colorFor(t)).toBe(LABEL_COLORS[t]);
     }
-    expect(new Set(Object.values(LABEL_COLORS)).size).toBe(9);
+    expect(new Set(Object.values(LABEL_COLORS)).size).toBe(13);
     expect(colorFor('Mystery')).toBe(FALLBACK_COLOR);
   });
   it('shortens long captions and falls back to the key', () => {
@@ -140,5 +140,31 @@ describe('repository and fix commit styling', () => {
   it('lists the new labels in the legend', () => {
     const l = legendCounts([{ type: 'FixCommit' }, { type: 'Repository' }, { type: 'Vulnerability' }], new Set());
     expect(l.map((e) => e.type)).toEqual(['Vulnerability', 'Repository', 'FixCommit']);
+  });
+});
+
+describe('new node types', () => {
+  it('has distinct colours and legend entries', () => {
+    const types = ['Package', 'AttackPattern', 'Technique', 'AtlasTechnique'];
+    const colors = types.map((t) => colorFor(t));
+    expect(new Set(colors).size).toBe(4);
+    for (const t of types) expect(colorFor(t)).not.toBe(FALLBACK_COLOR);
+    expect(new Set(Object.values(LABEL_COLORS)).size).toBe(Object.keys(LABEL_COLORS).length);
+    const legend = legendCounts(types.map((t) => ({ type: t })), new Set());
+    expect(legend.map((l) => l.type)).toEqual(types);
+  });
+  it('captions packages by name and the others by key', () => {
+    expect(captionFor({ type: 'Package', key: 'pkg:npm/lodash', label: 'pkg:npm/lodash', properties: { name: 'lodash' } })).toBe('lodash');
+    expect(captionFor({ type: 'Package', key: 'pkg:npm/x', label: 'lbl' })).toBe('lbl');
+    expect(captionFor({ type: 'AttackPattern', key: 'CAPEC-66', label: 'SQL Injection' })).toBe('CAPEC-66');
+    expect(captionFor({ type: 'Technique', key: 'T1059.001', label: 'PowerShell' })).toBe('T1059.001');
+    expect(captionFor({ type: 'AtlasTechnique', key: 'AML.T0000', label: 'x' })).toBe('AML.T0000');
+  });
+  it('labels edges with the new relationship types', () => {
+    const c = collapseEdges([
+      { id: '1', source: 'a', target: 'b', type: 'AFFECTS_PACKAGE' },
+      { id: '2', source: 'c', target: 'd', type: 'MAPS_TO_TECHNIQUE' },
+    ]);
+    expect(c.map((x) => x.label)).toEqual(['AFFECTS_PACKAGE', 'MAPS_TO_TECHNIQUE']);
   });
 });

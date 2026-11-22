@@ -1,6 +1,11 @@
 // The only module that calls fetch. All response-shape knowledge lives here and in types.ts.
 import { ApiError } from './errors';
 import type {
+  AtlasTechniqueDetail,
+  AttackPatternDetail,
+  AttackPatternRef,
+  CoItem,
+  CoPage,
   CountEntry,
   CoverageEntry,
   CveDetailData,
@@ -9,6 +14,8 @@ import type {
   GraphEnvelope,
   GraphOverview,
   Neighborhood,
+  PackageDetail,
+  PackageRef,
   ProductRef,
   RepositoryRef,
   SearchFilters,
@@ -16,6 +23,8 @@ import type {
   SourceInfo,
   StatsData,
   SyncEntry,
+  TechniqueDetail,
+  TechniqueRef,
   TopEntry,
 } from './types';
 
@@ -47,6 +56,8 @@ const isObj = (v: unknown): v is Json => typeof v === 'object' && v !== null && 
 const arr = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 const str = (v: unknown, d = ''): string => (typeof v === 'string' ? v : v == null ? d : String(v));
 const num = (v: unknown, d = 0): number => (typeof v === 'number' && Number.isFinite(v) ? v : d);
+const optStr = (v: unknown): string | null => (v == null || v === '' ? null : str(v));
+const optNum = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 const strList = (v: unknown): string[] => arr(v).map((x) => str(x)).filter((x) => x !== '');
 
 function normalizeEnvSources(v: Json): NonNullable<GraphEnvelope['sources']> {
@@ -125,6 +136,8 @@ export function normalizeStats(body: Json): StatsData {
     topProducts: toTop(body.topProducts),
     sync: arr(body.sync).filter(isObj).map(toSync),
     coverage: arr(body.coverage).filter(isObj).map(toCoverage),
+    kevCount: typeof body.kevCount === 'number' && Number.isFinite(body.kevCount) ? body.kevCount : null,
+    epssHigh: typeof body.epssHigh === 'number' && Number.isFinite(body.epssHigh) ? body.epssHigh : null,
   };
 }
 
@@ -173,6 +186,80 @@ export function normalizeDetail(body: Json): CveDetailData {
       .filter(isObj)
       .map((o): FixCommitRef => ({ sha: str(o.sha), repoUrl: str(o.repoUrl), url: str(o.url) }))
       .filter((c) => c.sha !== ''),
+    packages: arr(body.packages)
+      .filter(isObj)
+      .map(
+        (o): PackageRef => ({
+          purl: str(o.purl),
+          ecosystem: str(o.ecosystem),
+          name: str(o.name),
+          introduced: optStr(o.introduced),
+          fixed: optStr(o.fixed),
+          lastAffected: optStr(o.lastAffected),
+          affectedRanges: strList(o.affectedRanges),
+        }),
+      )
+      .filter((p) => p.purl !== ''),
+    attackPatterns: arr(body.attackPatterns)
+      .filter(isObj)
+      .map((o): AttackPatternRef => ({ capecID: str(o.capecID), name: str(o.name), viaWeakness: optStr(o.viaWeakness) }))
+      .filter((a) => a.capecID !== ''),
+    techniques: arr(body.techniques)
+      .filter(isObj)
+      .map((o): TechniqueRef => ({ attackID: str(o.attackID), name: str(o.name), viaAttackPattern: optStr(o.viaAttackPattern) }))
+      .filter((t) => t.attackID !== ''),
+  };
+}
+const pairs = <A extends string, B extends string>(v: unknown, a: A, b: B): Record<A | B, string>[] =>
+  arr(v)
+    .filter(isObj)
+    .map((o) => ({ [a]: str(o[a]), [b]: str(o[b]) }) as Record<A | B, string>)
+    .filter((o) => o[a] !== '');
+const repos = (v: unknown): RepositoryRef[] =>
+  arr(v)
+    .filter(isObj)
+    .map((o): RepositoryRef => ({ url: str(o.url), host: str(o.host) }))
+    .filter((r) => r.url !== '');
+export function normalizeCoPage(body: Json): CoPage {
+  const items = arr(body.items)
+    .filter(isObj)
+    .map((o): CoItem => ({ cveID: str(o.cveID), shared: num(o.shared), v3baseScore: optNum(o.v3baseScore) }))
+    .filter((i) => i.cveID !== '');
+  return {
+    found: num(body.found, items.length),
+    limit: num(body.limit, items.length),
+    items,
+    skippedProducts: typeof body.skippedProducts === 'number' ? body.skippedProducts : undefined,
+  };
+}
+export function normalizePackage(body: Json): PackageDetail {
+  return {
+    package: isObj(body.package) ? body.package : {},
+    vulnerabilities: arr(body.vulnerabilities)
+      .filter(isObj)
+      .map((o) => ({ cveID: str(o.cveID), publishedDate: optStr(o.publishedDate), v3baseScore: optNum(o.v3baseScore) }))
+      .filter((v) => v.cveID !== ''),
+    repositories: repos(body.repositories),
+  };
+}
+export function normalizeAttackPattern(body: Json): AttackPatternDetail {
+  return {
+    attackPattern: isObj(body.attackPattern) ? body.attackPattern : {},
+    weaknesses: pairs(body.weaknesses, 'cweID', 'cweName'),
+    techniques: pairs(body.techniques, 'attackID', 'name'),
+  };
+}
+export function normalizeTechnique(body: Json): TechniqueDetail {
+  return {
+    technique: isObj(body.technique) ? body.technique : {},
+    attackPatterns: pairs(body.attackPatterns, 'capecID', 'name'),
+    atlasTechniques: pairs(body.atlasTechniques, 'atlasID', 'name'),
+  };
+}
+export function normalizeAtlasTechnique(body: Json): AtlasTechniqueDetail {
+  return {
+    atlasTechnique: isObj(body.atlasTechnique) ? body.atlasTechnique : {},
+    techniques: pairs(body.techniques, 'attackID', 'name'),
   };
 }
 
@@ -269,6 +356,16 @@ export function createClient(opts: ClientOptions) {
     return isObj(body) ? body : {};
   }
 
+  async function coRelated(kind: 'co-exploited' | 'co-affected', id: string, signal?: AbortSignal): Promise<CoPage | null> {
+    try {
+      return normalizeCoPage(
+        await request(kind, `/vulnerabilities/${encodeURIComponent(id)}/${kind}`, { limit: 10 }, undefined, signal),
+      );
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 404) return null;
+      throw e;
+    }
+  }
   return {
     /** Exactly one call; the caller stores the key only when this resolves. */
     async login(key: string): Promise<void> {
@@ -294,6 +391,7 @@ export function createClient(opts: ClientOptions) {
             v3baseSeverity: o.v3baseSeverity == null ? null : str(o.v3baseSeverity),
             exploitability: o.exploitability == null ? null : str(o.exploitability),
             kev: typeof o.kev === 'boolean' ? o.kev : null,
+            epssScore: optNum(o.epssScore),
             sources: strList(o.sources),
           })),
         limit: num(b.limit, limit),
@@ -303,6 +401,29 @@ export function createClient(opts: ClientOptions) {
     async cve(id: string, signal?: AbortSignal): Promise<CveDetailData> {
       return normalizeDetail(
         await request('cve detail', `/vulnerabilities/${encodeURIComponent(id)}`, {}, undefined, signal),
+      );
+    },
+    /** Resolves to null when the server answers 404 (feature flag off). */
+    async coExploited(id: string, signal?: AbortSignal): Promise<CoPage | null> {
+      return coRelated('co-exploited', id, signal);
+    },
+    async coAffected(id: string, signal?: AbortSignal): Promise<CoPage | null> {
+      return coRelated('co-affected', id, signal);
+    },
+    async package(purl: string, signal?: AbortSignal): Promise<PackageDetail> {
+      return normalizePackage(await request('package', `/packages/${encodeURIComponent(purl)}`, {}, undefined, signal));
+    },
+    async attackPattern(id: string, signal?: AbortSignal): Promise<AttackPatternDetail> {
+      return normalizeAttackPattern(
+        await request('attack pattern', `/attack-patterns/${encodeURIComponent(id)}`, {}, undefined, signal),
+      );
+    },
+    async technique(id: string, signal?: AbortSignal): Promise<TechniqueDetail> {
+      return normalizeTechnique(await request('technique', `/techniques/${encodeURIComponent(id)}`, {}, undefined, signal));
+    },
+    async atlasTechnique(id: string, signal?: AbortSignal): Promise<AtlasTechniqueDetail> {
+      return normalizeAtlasTechnique(
+        await request('atlas technique', `/atlas-techniques/${encodeURIComponent(id)}`, {}, undefined, signal),
       );
     },
     async sources(signal?: AbortSignal): Promise<SourceInfo[]> {

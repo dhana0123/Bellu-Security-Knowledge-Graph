@@ -19,6 +19,16 @@ describe('coveragePercent', () => {
 });
 
 describe('coverageRows', () => {
+  it('renders new sources generically from their keys', () => {
+    const rows = coverageRows([
+      { source: 'kev', upstream: { kevEntries: 10 }, upstreamAt: 'T', inGraph: { kevEntries: 9 } },
+      { source: 'capec', upstream: null, upstreamAt: null, inGraph: { attackPatterns: 5 } },
+    ]);
+    expect(rows.map((r) => [r.source, r.metric, r.upstream, r.inGraph])).toEqual([
+      ['kev', 'kevEntries', 10, 9],
+      ['capec', 'attackPatterns', null, 5],
+    ]);
+  });
   it('pairs the comparable metrics and tolerates a missing upstream', () => {
     const rows = coverageRows([
       { source: 'nvd', upstream: { cves: 10, cvesNotRejected: 9 }, upstreamAt: 'T', inGraph: { cves: 8, cvesNotRejected: 7 } },

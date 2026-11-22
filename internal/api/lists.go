@@ -24,8 +24,10 @@ const (
 	defaultLimit = 50
 	maxLimit     = 500
 	maxQueryLen  = 500
-	cursorMaxAge = 24 * time.Hour
-	cursorSkew   = 5 * time.Minute
+	// maxEcosystemLen bounds the ecosystem filter (OSV names are short).
+	maxEcosystemLen = 100
+	cursorMaxAge    = 24 * time.Hour
+	cursorSkew      = 5 * time.Minute
 )
 
 var cweRe = regexp.MustCompile(`^CWE-\d{1,9}$`)
@@ -141,6 +143,19 @@ func parseDate(name, s string) (time.Time, error) {
 		return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC), nil
 	}
 	return time.Time{}, bad(name, "must be an ISO 8601 date or UTC timestamp")
+}
+
+// parseProbability reads an optional number from 0 to 1 (EPSS filters).
+func parseProbability(v url.Values, name string) (*float64, error) {
+	s := v.Get(name)
+	if s == "" {
+		return nil, nil
+	}
+	f, err := strconv.ParseFloat(s, 64)
+	if err != nil || math.IsNaN(f) || f < 0 || f > 1 {
+		return nil, bad(name, "must be a number from 0 to 1")
+	}
+	return &f, nil
 }
 
 func parseScore(v url.Values, name string) (*float64, error) {
@@ -319,6 +334,11 @@ func (e *Entities) search(w http.ResponseWriter, r *http.Request) {
 		e.badParam(w, r, err)
 		return
 	}
+	if params["ecosystem"] != nil && e.s.maxPhase(r.Context()) < 2 {
+		// Packages exist from schema phase 2; before that no vulnerability matches.
+		e.writeList(w, r, st, nil, hash)
+		return
+	}
 	query := cypherSearch
 	if text {
 		query = cypherSearchText
@@ -356,6 +376,7 @@ func (e *Entities) parseSearch(r *http.Request) (map[string]any, string, listSta
 	p := map[string]any{
 		"q": nil, "publishedFrom": nil, "publishedTo": nil, "cvssV3Min": nil, "cvssV3Max": nil,
 		"exploitability": nil, "kev": nil, "cwe": nil, "includeRejected": false,
+		"epssMin": nil, "epssMax": nil, "ecosystem": nil,
 	}
 	text := false
 	if q := strings.TrimSpace(v.Get("q")); q != "" {
@@ -413,6 +434,30 @@ func (e *Entities) parseSearch(r *http.Request) (map[string]any, string, listSta
 	if kev != nil {
 		p["kev"] = *kev
 	}
+	epssMin, err := parseProbability(v, "epssMin")
+	if err != nil {
+		return nil, "", st, false, err
+	}
+	epssMax, err := parseProbability(v, "epssMax")
+	if err != nil {
+		return nil, "", st, false, err
+	}
+	if epssMin != nil && epssMax != nil && *epssMin > *epssMax {
+		return nil, "", st, false, bad("epssMin", "must not exceed epssMax")
+	}
+	if epssMin != nil {
+		p["epssMin"] = *epssMin
+	}
+	if epssMax != nil {
+		p["epssMax"] = *epssMax
+	}
+	eco := strings.TrimSpace(v.Get("ecosystem"))
+	if utf8.RuneCountInString(eco) > maxEcosystemLen {
+		return nil, "", st, false, bad("ecosystem", "must be at most 100 characters")
+	}
+	if eco != "" {
+		p["ecosystem"] = eco
+	}
 	cwe := strings.ToUpper(strings.TrimSpace(v.Get("cwe")))
 	if cwe != "" {
 		if !cweRe.MatchString(cwe) {
@@ -427,7 +472,8 @@ func (e *Entities) parseSearch(r *http.Request) (map[string]any, string, listSta
 	p["includeRejected"] = incl != nil && *incl
 	qs, _ := p["q"].(string)
 	hash := hashFilters("search", qs, fmtT(from), fmtT(to), fmtPtr(min), fmtPtr(max),
-		fmt.Sprint(p["exploitability"]), fmtPtr(kev), cwe, fmt.Sprint(p["includeRejected"]))
+		fmt.Sprint(p["exploitability"]), fmtPtr(kev), cwe, fmt.Sprint(p["includeRejected"]),
+		fmtPtr(epssMin), fmtPtr(epssMax), eco)
 	st, err = e.paging(r, hash)
 	if err != nil {
 		return nil, "", st, false, err
