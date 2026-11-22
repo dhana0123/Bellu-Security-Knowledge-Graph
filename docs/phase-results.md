@@ -37,7 +37,7 @@ Migrations V101 (Package) and V201 (AttackPattern, Technique, AtlasTechnique) ap
 | CISA KEV | 9 s, succeeded | 1,790 entries | 1,790 CVEs flagged |
 | FIRST EPSS | 3 min, succeeded | 410,919 scores | 410,919 (17,579 with score >= 0.1) |
 | OSV (12 ecosystems) | 5 min, succeeded | 296,018 records | 256,646 packages, 295,829 AFFECTS_PACKAGE |
-| GHSA | running | not available from the API | no `GITHUB_TOKEN`: 60 requests per hour, about 5 hours for the first run |
+| GHSA | succeeded (30,000 without a token over 4.4 h, then the last 8,049 in 2 min after adding `GITHUB_TOKEN`; the first run is stored as failed because the worker was restarted, and the second resumed from its cursor) | no total in the API | 38,049 advisories: 33,280 attached to CVEs, 4,769 advisory-only |
 
 Graph after the load: 678,270 Vulnerability nodes, of which 430,578 are CVE-keyed (NVD 430,425 plus 153 CVEs that OSV or GHSA name before NVD publishes them) and the rest are advisory-only records (mostly OSV `MAL-*` malicious-package reports without a CVE). FixCommit 48,405, Repository 28,335.
 
