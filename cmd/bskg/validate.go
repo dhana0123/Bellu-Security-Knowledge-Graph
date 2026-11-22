@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"sort"
 	"syscall"
 
 	"github.com/bellu/bskg/internal/config"
@@ -25,9 +26,29 @@ func validateExit(rep validate.Report, err error) int {
 
 // printSummary writes the stdout summary.
 func printSummary(w io.Writer, rep validate.Report, out string) {
+	mode := rep.BuildMode
+	if mode == "" {
+		mode = "unset"
+	}
 	fmt.Fprintf(w, "validation %s\n", rep.Status)
+	fmt.Fprintf(w, "build mode: %s\n", mode)
+	fmt.Fprintf(w, "failed checks: %d\n", len(rep.Failed))
 	for _, f := range rep.Failed {
 		fmt.Fprintf(w, "  failed: %s\n", f)
+	}
+	for _, m := range rep.Warnings {
+		fmt.Fprintf(w, "  warning: %s\n", m)
+	}
+	if rep.Smoke != nil {
+		names := make([]string, 0, len(rep.Smoke.Counts))
+		for k := range rep.Smoke.Counts {
+			names = append(names, k)
+		}
+		sort.Strings(names)
+		fmt.Fprintln(w, "smoke counts:")
+		for _, k := range names {
+			fmt.Fprintf(w, "  %s: %d\n", k, rep.Smoke.Counts[k])
+		}
 	}
 	fmt.Fprintf(w, "report: %s\n", out)
 }

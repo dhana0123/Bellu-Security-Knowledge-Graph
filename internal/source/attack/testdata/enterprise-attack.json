@@ -1,0 +1,80 @@
+{
+  "type": "bundle",
+  "id": "bundle--00000000-0000-4000-8000-000000000001",
+  "objects": [
+    {
+      "type": "x-mitre-collection",
+      "id": "x-mitre-collection--1f5f1533-f617-4ca8-9ab4-6a02367fa019",
+      "name": "Enterprise ATT&CK",
+      "x_mitre_version": "17.3",
+      "x_mitre_contents": [{"object_ref": "attack-pattern--11111111-1111-4111-8111-111111111111", "object_modified": "2025-01-01T00:00:00.000Z"}],
+      "spec_version": "2.1"
+    },
+    {
+      "type": "attack-pattern",
+      "spec_version": "2.1",
+      "id": "attack-pattern--11111111-1111-4111-8111-111111111111",
+      "revoked": false,
+      "external_references": [
+        {"source_name": "mitre-attack", "url": "https://attack.mitre.org/techniques/T1574", "external_id": "T1574"},
+        {"source_name": "Some Blog", "description": "A blog.", "url": "https://example.com/blog"}
+      ],
+      "name": "Hijack Execution Flow",
+      "description": "Adversaries may execute their own malicious payloads by hijacking the way operating systems run programs.",
+      "kill_chain_phases": [
+        {"kill_chain_name": "mitre-attack", "phase_name": "persistence"},
+        {"kill_chain_name": "mitre-attack", "phase_name": "privilege-escalation"},
+        {"kill_chain_name": "mitre-attack", "phase_name": "defense-evasion"}
+      ],
+      "x_mitre_deprecated": false,
+      "x_mitre_domains": ["enterprise-attack"],
+      "x_mitre_is_subtechnique": false,
+      "x_mitre_version": "1.2"
+    },
+    {
+      "type": "attack-pattern",
+      "spec_version": "2.1",
+      "id": "attack-pattern--22222222-2222-4222-8222-222222222222",
+      "revoked": false,
+      "external_references": [
+        {"source_name": "mitre-attack", "url": "https://attack.mitre.org/techniques/T1574/010", "external_id": "T1574.010"}
+      ],
+      "name": "Services File Permissions Weakness",
+      "description": "Adversaries may execute their own malicious payloads by hijacking the binaries used by services.",
+      "kill_chain_phases": [
+        {"kill_chain_name": "mitre-attack", "phase_name": "persistence"}
+      ],
+      "x_mitre_deprecated": false,
+      "x_mitre_domains": ["enterprise-attack"],
+      "x_mitre_is_subtechnique": true
+    },
+    {
+      "type": "attack-pattern",
+      "spec_version": "2.1",
+      "id": "attack-pattern--33333333-3333-4333-8333-333333333333",
+      "revoked": true,
+      "external_references": [
+        {"source_name": "mitre-attack", "url": "https://attack.mitre.org/techniques/T1066", "external_id": "T1066"}
+      ],
+      "name": "Indicator Removal from Tools",
+      "kill_chain_phases": [
+        {"kill_chain_name": "mitre-attack", "phase_name": "defense-evasion"}
+      ],
+      "x_mitre_deprecated": false,
+      "x_mitre_domains": ["enterprise-attack"]
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--44444444-4444-4444-8444-444444444444",
+      "relationship_type": "subtechnique-of",
+      "source_ref": "attack-pattern--22222222-2222-4222-8222-222222222222",
+      "target_ref": "attack-pattern--11111111-1111-4111-8111-111111111111"
+    },
+    {
+      "type": "malware",
+      "id": "malware--55555555-5555-4555-8555-555555555555",
+      "name": "Not a technique",
+      "external_references": [{"source_name": "mitre-attack", "external_id": "S0001"}]
+    }
+  ]
+}

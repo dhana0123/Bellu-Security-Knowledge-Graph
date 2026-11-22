@@ -1,0 +1,19 @@
+{
+  "type": "bundle",
+  "id": "bundle--00000000-0000-4000-8000-000000000003",
+  "objects": [
+    {"type": "x-mitre-collection", "id": "x-mitre-collection--90c00720-636b-4485-b342-8751d232bf09", "name": "ICS ATT&CK", "x_mitre_version": "17.3"},
+    {
+      "type": "attack-pattern",
+      "id": "attack-pattern--77777777-7777-4777-8777-777777777777",
+      "revoked": true,
+      "x_mitre_deprecated": true,
+      "external_references": [
+        {"source_name": "mitre-ics-attack", "url": "https://attack.mitre.org/techniques/T0803", "external_id": "T0803"}
+      ],
+      "name": "Block Command Message",
+      "description": "Adversaries may block a command message.",
+      "kill_chain_phases": [{"kill_chain_name": "mitre-ics-attack", "phase_name": "inhibit-response-function"}]
+    }
+  ]
+}

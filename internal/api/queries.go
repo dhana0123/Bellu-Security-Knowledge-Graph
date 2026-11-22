@@ -129,18 +129,37 @@ RETURN v.cveID AS cveID, v.publishedDate AS publishedDate, v.description AS desc
   v.exploitability AS exploitability, v.kev AS kev, v.sources AS sources, score AS sortKey
 ORDER BY score DESC, v.cveID DESC LIMIT $limit`
 
-	// Co-exploitation and co-affected, computed at query time (Requirement 6.6, 6.7).
+	// Co-exploitation and co-affected, computed at query time; nothing is
+	// persisted (Requirement 19). Relationships with removed = true are
+	// ignored. Parameters: id (canonical cveID), limit, and for co-affected
+	// maxProductDegree. Rows come back ordered shared DESC, cveID ASC.
 	cypherCoExploited = `
-MATCH (a:Vulnerability {cveID: $id})<-[:EXPLOITS]-(e:Exploit)-[:EXPLOITS]->(b:Vulnerability)
-WHERE b <> a AND ($after IS NULL OR b.cveID > $after)
-RETURN b.cveID AS cveID, collect(DISTINCT e.eid) AS sharedExploits,
-  collect(DISTINCT e.exploitPublishDate) AS sharedExploitDates
-ORDER BY cveID ASC LIMIT $limit`
+MATCH (a:Vulnerability {cveID: $id})<-[r1:EXPLOITS]-(e:Exploit)
+WHERE coalesce(r1.removed, false) = false
+WITH DISTINCT a, e
+MATCH (e)-[r2:EXPLOITS]->(b:Vulnerability)
+WHERE b <> a AND coalesce(r2.removed, false) = false
+WITH b, count(DISTINCT e) AS shared
+RETURN b.cveID AS cveID, shared, b.v3baseScore AS v3baseScore
+ORDER BY shared DESC, cveID ASC LIMIT $limit`
+	// Products linked to more than $maxProductDegree vulnerabilities are not
+	// expanded. COUNT { } over the bare pattern is answered from the node's
+	// relationship degree, without visiting the neighbours.
 	cypherCoAffected = `
-MATCH (a:Vulnerability {cveID: $id})-[:AFFECTS]->(p:Product)<-[:AFFECTS]-(b:Vulnerability)
-WHERE b <> a AND ($after IS NULL OR b.cveID > $after)
-RETURN b.cveID AS cveID, collect(DISTINCT p.productName) AS sharedProducts
-ORDER BY cveID ASC LIMIT $limit`
+MATCH (a:Vulnerability {cveID: $id})-[r1:AFFECTS]->(p:Product)
+WHERE coalesce(r1.removed, false) = false
+  AND COUNT { (p)<-[:AFFECTS]-() } <= $maxProductDegree
+WITH DISTINCT a, p
+MATCH (p)<-[r2:AFFECTS]-(b:Vulnerability)
+WHERE b <> a AND coalesce(r2.removed, false) = false
+WITH b, count(DISTINCT p) AS shared
+RETURN b.cveID AS cveID, shared, b.v3baseScore AS v3baseScore
+ORDER BY shared DESC, cveID ASC LIMIT $limit`
+	cypherCoAffectedSkipped = `
+MATCH (a:Vulnerability {cveID: $id})-[r1:AFFECTS]->(p:Product)
+WHERE coalesce(r1.removed, false) = false
+  AND COUNT { (p)<-[:AFFECTS]-() } > $maxProductDegree
+RETURN count(DISTINCT p) AS skipped LIMIT 1`
 
 	// Change history (keyset on id, newest first) and as-of inputs.
 	cypherHistory = `
@@ -219,7 +238,7 @@ var allQueries = []string{
 	cypherVendorExact, cypherVendorFold, cypherVendorByKey, cypherVendorVulns,
 	cypherExploitByID,
 	cypherSearch, cypherSearchText,
-	cypherCoExploited, cypherCoAffected,
+	cypherCoExploited, cypherCoAffected, cypherCoAffectedSkipped,
 	cypherHistory, cypherAsOfChanges, cypherHistoryFloor,
 	cypherSourceLastSuccess,
 	cypherStatusBuild, cypherStatusJobs, cypherMigrationVersion,

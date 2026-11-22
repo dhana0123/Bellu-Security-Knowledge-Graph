@@ -201,19 +201,41 @@ type Inputs struct {
 	Reject      RejectCheck
 	// Phase is the highest schema phase applied (0 means 1).
 	Phase int
+	// The checks below run only when non-nil.
+	ExploitData    *ExploitDataCheck
+	Exploitability *ExploitabilityCheck
+	Unset          *UnsetPropsCheck
+	Smoke          *SmokeResult
+	// BuildMode and SampleLimit come from BuildMeta (empty and 0 when unset).
+	BuildMode   string
+	SampleLimit int
+	// Counts are the label and relationship counts gathered for the smoke check.
+	Counts map[string]int64
 }
 
 // Report is the Validation_Report JSON document.
 type Report struct {
 	GeneratedAt string   `json:"generatedAt,omitempty"`
+	StartedAt   string   `json:"startedAt,omitempty"`
+	EndedAt     string   `json:"endedAt,omitempty"`
+	BuildMode   string   `json:"buildMode"`
+	SampleLimit int      `json:"sampleLimit,omitempty"`
 	Status      string   `json:"status"` // "passed" or "failed"
 	Failed      []string `json:"failed"` // names of failed checks
+	// FailedChecks repeats Failed under the name of the Validation_Report spec.
+	FailedChecks []string `json:"failedChecks"`
+	Warnings     []string `json:"warnings"`
 	// Counts holds the node and relationship counts collected for the smoke check.
 	Counts     map[string]int64 `json:"counts,omitempty"`
 	Schema     []SchemaCheck    `json:"schema"`
 	Duplicates []DuplicateCheck `json:"duplicates"`
 	Endpoints  []EndpointCheck  `json:"endpoints"`
 	Reject     RejectCheck      `json:"reject"`
+	// The checks below are omitted when they did not run.
+	ExploitData    *ExploitDataCheck    `json:"exploitData,omitempty"`
+	Exploitability *ExploitabilityCheck `json:"exploitability,omitempty"`
+	Unset          *UnsetPropsCheck     `json:"unsetProperties,omitempty"`
+	Smoke          *SmokeResult         `json:"smoke,omitempty"`
 	// Queries is filled by the representative-query runner.
 	Queries any `json:"queries,omitempty"`
 }
@@ -222,11 +244,19 @@ type Report struct {
 // are evaluated even when an earlier one fails.
 func BuildReport(in Inputs) Report {
 	r := Report{
-		Schema:     append(CheckConstraintsFor(in.Constraints, in.Phase), CheckIndexes(in.Indexes)...),
-		Duplicates: nonNilDup(in.Duplicates),
-		Endpoints:  nonNilEnd(in.Endpoints),
-		Reject:     in.Reject,
-		Failed:     []string{},
+		Schema:         append(CheckConstraintsFor(in.Constraints, in.Phase), CheckIndexes(in.Indexes)...),
+		Duplicates:     nonNilDup(in.Duplicates),
+		Endpoints:      nonNilEnd(in.Endpoints),
+		Reject:         in.Reject,
+		Failed:         []string{},
+		Warnings:       []string{},
+		BuildMode:      in.BuildMode,
+		SampleLimit:    in.SampleLimit,
+		Counts:         in.Counts,
+		ExploitData:    in.ExploitData,
+		Exploitability: in.Exploitability,
+		Unset:          in.Unset,
+		Smoke:          in.Smoke,
 	}
 	for _, s := range r.Schema {
 		if !s.Passed {
@@ -246,12 +276,36 @@ func BuildReport(in Inputs) Report {
 	if !r.Reject.Passed {
 		r.Failed = append(r.Failed, "reject")
 	}
+	if c := r.ExploitData; c != nil && !c.Passed {
+		r.Failed = append(r.Failed, "exploit_data")
+	}
+	if c := r.Exploitability; c != nil && !c.Passed {
+		r.Failed = append(r.Failed, "exploitability")
+	}
+	if c := r.Unset; c != nil && !c.Passed {
+		r.Failed = append(r.Failed, "unset_properties")
+	}
+	if c := r.Smoke; c != nil {
+		if !c.Passed {
+			r.Failed = append(r.Failed, "smoke")
+		}
+		r.Warnings = append(r.Warnings, c.Warnings...)
+	}
+	r.refresh()
+	return r
+}
+
+// refresh sorts Failed and derives Status and FailedChecks from it.
+func (r *Report) refresh() {
+	if r.Failed == nil {
+		r.Failed = []string{}
+	}
 	sort.Strings(r.Failed)
+	r.FailedChecks = append([]string{}, r.Failed...)
 	r.Status = "passed"
 	if len(r.Failed) > 0 {
 		r.Status = "failed"
 	}
-	return r
 }
 
 // Passed reports whether the report status is "passed".

@@ -265,11 +265,15 @@ func CollectIntegrity(ctx context.Context, c *graph.Client) (Inputs, error) {
 		}
 	}
 	in.Reject = NewRejectCheck(n, ids)
+	if err := collectExtra(ctx, c, &in); err != nil {
+		return in, err
+	}
 	return in, nil
 }
 
 // Run collects the integrity checks and the counts and returns the report.
 func Run(ctx context.Context, c *graph.Client) (Report, error) {
+	started := time.Now().UTC().Format(time.RFC3339)
 	in, err := CollectIntegrity(ctx, c)
 	if err != nil {
 		return Report{}, err
@@ -278,8 +282,15 @@ func Run(ctx context.Context, c *graph.Client) (Report, error) {
 	if err != nil {
 		return Report{}, err
 	}
+	for k, v := range in.Counts { // label and relationship counts of the applied phase
+		if _, ok := counts[k]; !ok {
+			counts[k] = v
+		}
+	}
+	in.Counts = counts
 	r := BuildReport(in)
-	r.Counts = counts
 	r.GeneratedAt = time.Now().UTC().Format(time.RFC3339)
+	r.StartedAt = started
+	r.EndedAt = r.GeneratedAt
 	return r, nil
 }

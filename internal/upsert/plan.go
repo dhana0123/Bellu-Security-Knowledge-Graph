@@ -299,12 +299,15 @@ func (p *planner) entity(e source.Entity, ref string) {
 	}
 	// Existing node: change only differing properties.
 	dirty := false
+	quiet := quietProps(e, n.cur)
 	for _, name := range sortedKeys(e.Props) {
 		v := e.Props[name]
 		if name == k.Prop || equalValue(n.cur[name], v) {
 			continue
 		}
-		p.rec(k.String(), TypePropertyChanged, name, change.EncodeValue(n.cur[name]), change.EncodeValue(v))
+		if !quiet[name] {
+			p.rec(k.String(), TypePropertyChanged, name, change.EncodeValue(n.cur[name]), change.EncodeValue(v))
+		}
 		n.cur[name], n.set[name] = v, v
 		dirty = true
 		if k.Label == labelExploit && name == exploitPublishDateProp {
@@ -323,6 +326,46 @@ func (p *planner) entity(e source.Entity, ref string) {
 		p.stamp(n.cur, n.set, ref)
 		p.changed = true
 	}
+}
+
+// thresholdEpsilon absorbs float rounding when a change equals the threshold.
+const thresholdEpsilon = 1e-9
+
+// quietProps returns the properties of e whose changes are stored without a
+// Change_Record (Entity.ChangeThreshold, Entity.ChangeFollows). A governing
+// property is quiet when old and new are both numeric and the absolute change
+// is below its threshold. A follower is quiet when its governor is quiet. It
+// returns nil when e sets no ChangeThreshold.
+func quietProps(e source.Entity, cur map[string]any) map[string]bool {
+	if len(e.ChangeThreshold) == 0 {
+		return nil
+	}
+	quiet := map[string]bool{}
+	for name, t := range e.ChangeThreshold {
+		nv, ok := e.Props[name]
+		if !ok {
+			continue
+		}
+		o, ook := numeric(cur[name])
+		n, nok := numeric(nv)
+		if ook && nok && math.Abs(n-o) < t-thresholdEpsilon {
+			quiet[name] = true
+		}
+	}
+	for name, gov := range e.ChangeFollows {
+		if _, has := e.ChangeThreshold[gov]; has && quiet[gov] {
+			quiet[name] = true
+		}
+	}
+	return quiet
+}
+
+func numeric(v any) (float64, bool) {
+	switch x := normalize(v).(type) {
+	case float64:
+		return x, !math.IsNaN(x)
+	}
+	return 0, false
 }
 
 // exploitDateChanged queues the Vulnerabilities an Exploit points at.

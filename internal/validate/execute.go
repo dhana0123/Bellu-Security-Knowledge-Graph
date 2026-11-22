@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"sort"
+	"time"
+
+	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
 	"github.com/bellu/bskg/internal/graph"
 )
@@ -18,7 +20,8 @@ type Options struct {
 	// Out is the report file; empty means DefaultOut.
 	Out string
 	// QueryParams holds the parameters of the representative queries by name.
-	// Queries without an entry are not run.
+	// Queries without an entry are not run. When empty, the parameters are
+	// chosen from the graph by the selectors (RunSelectedQueries).
 	QueryParams map[string]map[string]any
 }
 
@@ -28,17 +31,23 @@ type Options struct {
 // reported through Report.Passed() with a nil error. If the report was built
 // but could not be written, both are returned.
 func Execute(ctx context.Context, c *graph.Client, opts Options) (Report, error) {
+	started := time.Now().UTC().Format(time.RFC3339)
 	rep, err := Run(ctx, c)
 	if err != nil {
 		return Report{}, err
 	}
+	rep.StartedAt = started
+	var qs []QueryResult
 	if len(opts.QueryParams) > 0 {
-		qs, err := RunQueries(ctx, c, opts.QueryParams)
-		if err != nil {
-			return Report{}, err
-		}
-		AttachQueries(&rep, qs)
+		qs, err = RunQueries(ctx, c, opts.QueryParams)
+	} else {
+		qs, err = RunSelectedQueries(ctx, c)
 	}
+	if err != nil {
+		return Report{}, err
+	}
+	AttachQueries(&rep, qs)
+	rep.EndedAt = time.Now().UTC().Format(time.RFC3339)
 	out := opts.Out
 	if out == "" {
 		out = DefaultOut
@@ -46,7 +55,44 @@ func Execute(ctx context.Context, c *graph.Client, opts Options) (Report, error)
 	if err := WriteReport(out, rep); err != nil {
 		return rep, err
 	}
+	if err := WriteSummary(ctx, c, rep); err != nil {
+		return rep, err
+	}
 	return rep, nil
+}
+
+// cypherWriteSummary stores the last validation summary in BuildMeta;
+// /v1/status reads lastValidationStatus, lastValidationMode, and
+// lastValidationEndedAt.
+const cypherWriteSummary = `MERGE (b:BuildMeta {id: 'build'})
+SET b.lastValidationStatus = $status, b.lastValidationMode = $mode,
+    b.lastValidationEndedAt = datetime($endedAt), b.lastValidationFailed = $failed`
+
+// WriteSummary writes the report summary to (:BuildMeta {id: 'build'}).
+// An unset build mode is stored as "unset".
+func WriteSummary(ctx context.Context, c *graph.Client, r Report) error {
+	mode := r.BuildMode
+	if mode == "" {
+		mode = "unset"
+	}
+	ended := r.EndedAt
+	if ended == "" {
+		ended = time.Now().UTC().Format(time.RFC3339)
+	}
+	_, err := c.WriteRetry(ctx, func(ctx context.Context, tx neo4j.ManagedTransaction) (any, error) {
+		res, err := tx.Run(ctx, cypherWriteSummary, map[string]any{
+			"status": r.Status, "mode": mode, "endedAt": ended, "failed": int64(len(r.Failed)),
+		})
+		if err != nil {
+			return nil, err
+		}
+		_, err = res.Consume(ctx)
+		return nil, err
+	})
+	if err != nil {
+		return fmt.Errorf("write validation summary: %w", err)
+	}
+	return nil
 }
 
 // AttachQueries stores query results in the report and fails the report for
@@ -57,12 +103,11 @@ func AttachQueries(r *Report, qs []QueryResult) {
 		if !q.Passed {
 			r.Failed = append(r.Failed, "query:"+q.Name)
 		}
+		if q.Skipped {
+			r.Warnings = append(r.Warnings, "query "+q.Name+" skipped: "+q.Message)
+		}
 	}
-	sort.Strings(r.Failed)
-	r.Status = "passed"
-	if len(r.Failed) > 0 {
-		r.Status = "failed"
-	}
+	r.refresh()
 }
 
 // WriteReport writes the report as indented JSON.

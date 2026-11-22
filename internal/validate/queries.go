@@ -131,9 +131,14 @@ func js(v any) string {
 // QueryResult is the outcome of one representative query. A query passes
 // when it runs without error; selector-based result checks come with the
 // smoke check.
+//
+// Skipped is set when the selector found no parameter in the graph (for
+// example no exploits in a sample of recent CVEs). A skipped query is not a
+// failure (Passed is true) and the report carries a warning for it.
 type QueryResult struct {
 	Name    string `json:"name"`
 	Passed  bool   `json:"passed"`
+	Skipped bool   `json:"skipped,omitempty"`
 	Rows    int    `json:"rows"`
 	Message string `json:"message,omitempty"`
 }

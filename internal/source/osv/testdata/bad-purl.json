@@ -1,0 +1,10 @@
+{
+  "id": "OSV-2024-1",
+  "modified": "2024-06-01T00:00:00Z",
+  "summary": "mixed packages",
+  "affected": [
+    {"package": {"ecosystem": "Maven", "name": "nocolon"}, "ranges": [{"type": "ECOSYSTEM", "events": [{"introduced": "0"}]}]},
+    {"package": {"ecosystem": "Debian:11", "name": "openssl"}},
+    {"package": {"ecosystem": "crates.io", "name": "serde"}, "ranges": [{"type": "GIT", "repo": "https://example.com/not/supported", "events": [{"fixed": "0123456789abcdef0123456789abcdef01234567"}]}]}
+  ]
+}

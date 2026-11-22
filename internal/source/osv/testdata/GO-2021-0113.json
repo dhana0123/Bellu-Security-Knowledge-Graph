@@ -1,0 +1,25 @@
+{
+  "id": "GO-2021-0113",
+  "modified": "2024-04-01T12:00:00Z",
+  "published": "2021-10-06T17:51:21Z",
+  "withdrawn": "2024-05-01T00:00:00Z",
+  "aliases": ["CVE-2021-38561", "GHSA-ppp5-5v6c-4jwp"],
+  "summary": "Out-of-bounds read in golang.org/x/text/language",
+  "affected": [
+    {
+      "package": {"ecosystem": "Go", "name": "golang.org/x/text"},
+      "ranges": [
+        {"type": "SEMVER", "events": [{"introduced": "0"}, {"fixed": "0.3.7"}]},
+        {"type": "GIT", "repo": "git@github.com:golang/text.git", "events": [
+          {"introduced": "0"},
+          {"fixed": "383b2e75a7a4198c42f8f87833eefb772868a56f"},
+          {"fixed": "deadbeef"}
+        ]}
+      ]
+    }
+  ],
+  "references": [
+    {"type": "FIX", "url": "https://github.com/golang/text/commit/383b2e75a7a4198c42f8f87833eefb772868a56f"},
+    {"type": "REPORT", "url": "https://github.com/golang/go/issues/1"}
+  ]
+}

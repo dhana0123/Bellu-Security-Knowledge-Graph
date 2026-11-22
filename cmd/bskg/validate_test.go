@@ -45,3 +45,17 @@ func TestValidateUnknownFlag(t *testing.T) {
 		t.Fatal("want exit 2")
 	}
 }
+
+func TestPrintSummaryModeWarningsAndSmokeCounts(t *testing.T) {
+	var b bytes.Buffer
+	rep := validate.Report{
+		Status: "passed", BuildMode: "sample", Warnings: []string{"AFFECTS count is 0"},
+		Smoke: &validate.SmokeResult{Counts: map[string]int64{"Weakness": 3, "AFFECTS": 0}},
+	}
+	printSummary(&b, rep, "r.json")
+	for _, want := range []string{"validation passed", "build mode: sample", "failed checks: 0", "warning: AFFECTS count is 0", "  AFFECTS: 0", "  Weakness: 3"} {
+		if !strings.Contains(b.String(), want) {
+			t.Errorf("missing %q in %q", want, b.String())
+		}
+	}
+}

@@ -101,6 +101,7 @@ func runServe(args []string, stdout, stderr io.Writer) int {
 		UI:           ui.Files,
 	})
 	api.Routes(srv, q, []byte(cfg.CursorSecret.Value()))
+	api.CoExploitRoutes(srv, q, cfg.CoExploitation, 0)
 	api.OpsRoutes(srv, api.OpsConfig{
 		Q: q, Batch: api.ReadBatch(g), SourceStatus: api.ReadSourceStatus(g),
 		StatsTTL: cfg.StatsTTL, StatsTimeout: cfg.StatsTimeout,

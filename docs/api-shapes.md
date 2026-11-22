@@ -189,6 +189,31 @@ Failure with no cached result: 504 on timeout, 503 when the store is unreachable
   `{"weakness"|"product"|"vendor"|"exploit": {...}, ...}`; the three list routes `/v1/{weaknesses|products|vendors}/{key}/vulnerabilities`
   return `{"items":[{"cveID","publishedDate","v3baseScore"}],"limit","nextCursor?"}`.
 
+## GET /v1/vulnerabilities/{id}/co-exploited and /co-affected
+
+Registered only when `BSKG_ENABLE_COEXPLOITATION=true`; otherwise both paths answer 404 `not_found` like any unknown route.
+Authenticated and rate-limited like the other `/v1` routes. Nothing is stored: the counts are computed per request.
+
+- `co-exploited`: other vulnerabilities that share at least one Exploit (`(Exploit)-[:EXPLOITS]->` both). `shared` is the number of shared exploits.
+- `co-affected`: other vulnerabilities that share at least one Product (`AFFECTS`). `shared` is the number of shared products.
+- Relationships with `removed = true` are ignored. The relation is symmetric: `shared` for A listing B equals `shared` for B listing A.
+- `{id}` is a CVE id (any case) or an alias such as a GHSA id.
+
+Query: `limit` (integer 1 to 500, default 50; anything else is `400 invalid_parameter` with `parameter: "limit"`).
+Order: `shared` descending, then `cveID` ascending. There is no cursor.
+
+```json
+{"found": true, "limit": 50,
+ "items": [{"cveID": "CVE-2021-0003", "shared": 2, "v3baseScore": 9.8}],
+ "skippedProducts": 0, "graph": {...}}
+```
+
+`v3baseScore` is `null` when the vulnerability has no CVSS v3 score. `skippedProducts` appears on `co-affected` only: the number of
+this vulnerability's products that were not expanded because more than 5000 vulnerabilities are affected by them (for example
+`linux_kernel`). Those products do not contribute to `shared`.
+
+An id that matches no vulnerability and no alias returns 200 `{"found": false, "items": [], "limit": 50}` (plus `"skippedProducts": 0` for `co-affected`).
+
 ## GET /v1/sources
 Constant list copied from the License and Attribution columns of `docs/sources.md`
 (`name` is the source id used in `sources` arrays; a cell that is still `TODO` there is sent as `Not recorded yet`).

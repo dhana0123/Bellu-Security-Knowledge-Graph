@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Attack_Pattern_Catalog xmlns="http://capec.mitre.org/capec-3"
+                        xmlns:xhtml="http://www.w3.org/1999/xhtml"
+                        Name="CAPEC"
+                        Version="3.9"
+                        Date="2023-01-24">
+   <Attack_Patterns>
+      <Attack_Pattern ID="1" Name="Accessing Functionality Not Properly Constrained by ACLs"
+                      Abstraction="Standard"
+                      Status="Draft">
+         <Description>In applications, access to functionality is mitigated by an authorization framework.</Description>
+         <Likelihood_Of_Attack>High</Likelihood_Of_Attack>
+         <Typical_Severity>Very High</Typical_Severity>
+         <Related_Weaknesses>
+            <Related_Weakness CWE_ID="276"/>
+            <Related_Weakness CWE_ID="285"/>
+            <Related_Weakness CWE_ID="0285"/>
+            <Related_Weakness CWE_ID="bogus"/>
+         </Related_Weaknesses>
+         <Taxonomy_Mappings>
+            <Taxonomy_Mapping Taxonomy_Name="ATTACK">
+               <Entry_ID>1574.010</Entry_ID>
+               <Entry_Name>Hijack Execution Flow: Services File Permissions Weakness</Entry_Name>
+            </Taxonomy_Mapping>
+            <Taxonomy_Mapping Taxonomy_Name="WASC">
+               <Entry_ID>02</Entry_ID>
+               <Entry_Name>Insufficient Authorization</Entry_Name>
+            </Taxonomy_Mapping>
+            <Taxonomy_Mapping Taxonomy_Name="ATTACK">
+               <Entry_ID>1110</Entry_ID>
+            </Taxonomy_Mapping>
+            <Taxonomy_Mapping Taxonomy_Name="ATTACK">
+               <Entry_ID>07</Entry_ID>
+            </Taxonomy_Mapping>
+         </Taxonomy_Mappings>
+      </Attack_Pattern>
+      <Attack_Pattern ID="0010" Name="Buffer Overflow via Environment Variables" Abstraction="Detailed" Status="Stable">
+         <Description>
+            <xhtml:p>An adversary <xhtml:b>overflows</xhtml:b>, a buffer.</xhtml:p>
+            <xhtml:p>Second   paragraph.</xhtml:p>
+         </Description>
+      </Attack_Pattern>
+   </Attack_Patterns>
+   <Categories>
+      <Category ID="1000" Name="Not a pattern" Status="Draft"/>
+   </Categories>
+</Attack_Pattern_Catalog>

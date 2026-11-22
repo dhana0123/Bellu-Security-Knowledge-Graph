@@ -1,0 +1,96 @@
+[
+  {
+    "ghsa_id": "GHSA-v853-p72q-4cfw",
+    "cve_id": null,
+    "html_url": "https://github.com/advisories/GHSA-v853-p72q-4cfw",
+    "summary": "Quart leaks raw request body to stdout",
+    "type": "reviewed",
+    "severity": "high",
+    "identifiers": [{"value": "GHSA-v853-p72q-4cfw", "type": "GHSA"}],
+    "references": [
+      "https://github.com/pallets/quart/security/advisories/GHSA-v853-p72q-4cfw",
+      "https://github.com/pallets/quart/commit/e8eb3b8a0cb98e7574bf3841312fc7f96883d055",
+      "https://github.com/pallets/quart/commit/abc123",
+      "https://github.com/advisories/GHSA-v853-p72q-4cfw"
+    ],
+    "source_code_location": "https://github.com/pallets/quart",
+    "published_at": "2026-10-05T22:49:44Z",
+    "updated_at": "2026-11-02T13:39:16Z",
+    "withdrawn_at": null,
+    "vulnerabilities": [
+      {"package": {"ecosystem": "pip", "name": "Quart"}, "vulnerable_version_range": "= 0.23.0", "first_patched_version": "0.23.1"}
+    ],
+    "cvss_severities": {
+      "cvss_v3": {"vector_string": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N", "score": 7.5},
+      "cvss_v4": {"vector_string": null, "score": 0.0}
+    },
+    "cwes": [{"cwe_id": "CWE-532", "name": "Insertion of Sensitive Information into Log File"}]
+  },
+  {
+    "ghsa_id": "GHSA-f9j6-8p6x-r9j6",
+    "cve_id": "CVE-2026-62374",
+    "html_url": "https://github.com/advisories/GHSA-f9j6-8p6x-r9j6",
+    "summary": "SD JWT JS: tampered disclosures silently dropped",
+    "type": "reviewed",
+    "severity": "high",
+    "identifiers": [
+      {"value": "GHSA-f9j6-8p6x-r9j6", "type": "GHSA"},
+      {"value": "CVE-2026-62374", "type": "CVE"}
+    ],
+    "references": [
+      "https://nvd.nist.gov/vuln/detail/CVE-2026-62374",
+      "https://github.com/openwallet-foundation/sd-jwt-js/commit/3d8a72a0a279d67439db038c9c2b52621568b866"
+    ],
+    "source_code_location": "https://github.com/openwallet-foundation/sd-jwt-js",
+    "published_at": "2026-11-02T17:54:39Z",
+    "updated_at": "2026-11-02T17:54:41Z",
+    "withdrawn_at": null,
+    "vulnerabilities": [
+      {"package": {"ecosystem": "npm", "name": "@sd-jwt/decode"}, "vulnerable_version_range": "<= 0.19.0", "first_patched_version": null},
+      {"package": {"ecosystem": "npm", "name": "@sd-jwt/core"}, "vulnerable_version_range": ">= 0.10.0, < 0.20.0", "first_patched_version": "0.20.0"}
+    ],
+    "cvss_severities": {
+      "cvss_v3": {"vector_string": null, "score": 0.0},
+      "cvss_v4": {"vector_string": "CVSS:4.0/AV:N/AC:L/AT:N/PR:L/UI:N/VC:N/VI:H/VA:N/SC:N/SI:N/SA:N", "score": 7.1}
+    },
+    "cwes": [{"cwe_id": "CWE-176"}, {"cwe_id": "CWE-176"}]
+  },
+  {
+    "ghsa_id": "GHSA-pppp-qqqq-rrrr",
+    "cve_id": "CVE-2025-0001",
+    "html_url": "https://github.com/advisories/GHSA-pppp-qqqq-rrrr",
+    "summary": "Withdrawn advisory with two CVEs",
+    "type": "reviewed",
+    "severity": "low",
+    "identifiers": [
+      {"value": "GHSA-pppp-qqqq-rrrr", "type": "GHSA"},
+      {"value": "CVE-2025-0001", "type": "CVE"},
+      {"value": "cve-2025-0002", "type": "CVE"},
+      {"value": "PYSEC-2025-1", "type": "PYSEC"}
+    ],
+    "references": [],
+    "source_code_location": "https://gitlab.com/group/sub/proj",
+    "published_at": "2025-01-01T00:00:00Z",
+    "updated_at": "2025-03-01T10:00:00Z",
+    "withdrawn_at": "2025-03-01T10:00:00Z",
+    "vulnerabilities": [
+      {"package": {"ecosystem": "maven", "name": "org.example:lib"}, "vulnerable_version_range": "< 1.2.3", "first_patched_version": "1.2.3"},
+      {"package": {"ecosystem": "maven", "name": "org.example:lib"}, "vulnerable_version_range": ">= 2.0.0, < 2.0.5", "first_patched_version": "2.0.5"},
+      {"package": {"ecosystem": "other", "name": "thing"}, "vulnerable_version_range": "< 1"}
+    ],
+    "cvss_severities": {},
+    "cvss": {"vector_string": "CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N", "score": 5.3},
+    "cwes": []
+  },
+  {
+    "cve_id": null,
+    "html_url": "https://github.com/advisories/missing-id",
+    "summary": "no id",
+    "updated_at": "2026-01-01T00:00:00Z"
+  },
+  {
+    "ghsa_id": "GHSA-2222-3333-4444",
+    "summary": "no updated_at",
+    "published_at": "2026-01-01T00:00:00Z"
+  }
+]

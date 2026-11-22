@@ -1,0 +1,13 @@
+{
+  "id": "PYSEC-2021-1",
+  "modified": "2024-02-01T00:00:00Z",
+  "published": "2021-05-01T00:00:00Z",
+  "summary": "Django_Foo allows bypass",
+  "affected": [
+    {
+      "package": {"ecosystem": "PyPI", "name": "Django_Foo"},
+      "ranges": [{"type": "ECOSYSTEM", "events": [{"introduced": "1.0"}, {"fixed": "1.2"}]}]
+    }
+  ],
+  "references": [{"type": "WEB", "url": "https://example.org/advisory"}]
+}

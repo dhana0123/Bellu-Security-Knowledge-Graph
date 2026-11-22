@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE Attack_Pattern_Catalog [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>
+<Attack_Pattern_Catalog xmlns="http://capec.mitre.org/capec-3" Name="CAPEC" Version="3.9" Date="2023-01-24">
+   <Attack_Patterns>
+      <Attack_Pattern ID="1" Name="&xxe;" Abstraction="Standard" Status="Draft"/>
+   </Attack_Patterns>
+</Attack_Pattern_Catalog>

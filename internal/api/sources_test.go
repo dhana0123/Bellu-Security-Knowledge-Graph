@@ -15,10 +15,10 @@ func TestSourcesEndpoint(t *testing.T) {
 		t.Fatalf("status = %d", code)
 	}
 	list, _ := body["sources"].([]any)
-	if len(list) != 3 {
+	if len(list) != 10 {
 		t.Fatalf("sources = %v", body["sources"])
 	}
-	for i, want := range []string{"cwe", "nvd", "exploitdb"} {
+	for i, want := range []string{"cwe", "nvd", "exploitdb", "attack", "atlas", "capec", "kev", "epss", "osv", "ghsa"} {
 		m := list[i].(map[string]any)
 		if m["name"] != want || m["license"] == "" || m["attribution"] == "" {
 			t.Errorf("entry %d = %v", i, m)

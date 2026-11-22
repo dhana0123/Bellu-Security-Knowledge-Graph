@@ -141,6 +141,16 @@ type Entity struct {
 	Ref   Ref
 	Props map[string]any
 	Clear []string
+	// ChangeThreshold maps a numeric property to the minimum absolute change
+	// that writes a Change_Record. The new value is stored on every run; a
+	// change smaller than the threshold only writes no Change_Record. A
+	// property that is absent or not numeric on either side is always
+	// recorded. Used by EPSS (Requirement 16.7). Nil for every other source.
+	ChangeThreshold map[string]float64
+	// ChangeFollows maps a property to a property of ChangeThreshold. A change
+	// of the follower is recorded if and only if the governing property's
+	// change is recorded; the value is stored either way.
+	ChangeFollows map[string]string
 }
 
 // Rel is a relationship to create or update. Key holds the identity

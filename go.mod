@@ -11,6 +11,7 @@ require (
 	github.com/oklog/ulid/v2 v2.1.2
 	github.com/package-url/packageurl-go v0.1.7
 	github.com/testcontainers/testcontainers-go v0.35.0
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (

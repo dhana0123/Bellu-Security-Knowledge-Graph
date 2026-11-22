@@ -1,0 +1,82 @@
+format-version: 6.1.0
+collection:
+  name: ATLAS
+  description: Adversarial Threat Landscape for AI Systems
+  version: '2026.10'
+  id: ATLAS-collection
+matrix:
+  name: ATLAS
+  id: ATLAS-matrix
+tactics:
+  AML.TA0002:
+    name: Reconnaissance
+    id: AML.TA0002
+    object-type: tactic
+  AML.TA0004:
+    name: Initial Access
+    id: AML.TA0004
+    object-type: tactic
+techniques:
+  AML.T0000:
+    name: Search Open Technical Databases
+    description: 'Adversaries may search for publicly available research.
+
+      A second paragraph.'
+    references: []
+    attack-reference:
+      id: T1596
+      url: https://attack.mitre.org/techniques/T1596/
+    id: AML.T0000
+    object-type: technique
+  AML.T0000.000:
+    name: Journals and Conference Proceedings
+    description: Many of the publications are open.
+    id: AML.T0000.000
+    object-type: technique
+  AML.T0010:
+    name: AI Supply Chain Compromise
+    description: Adversaries may compromise the supply chain.
+    ATT&CK-reference:
+      id: not-an-id
+    id: AML.T0010
+    object-type: technique
+  AML.T0011:
+    name: Technique without tactic or description
+    id: AML.T0011
+    object-type: technique
+mitigations:
+  AML.M0000:
+    name: Limit Public Release of Information
+    id: AML.M0000
+    object-type: mitigation
+case-studies: {}
+entities: {}
+software: {}
+relationships:
+  AML.T0000:
+    achieves:
+    - source: AML.T0000
+      target: AML.TA0002
+      relationship-type: achieves
+  AML.T0000.000:
+    achieves:
+    - source: AML.T0000.000
+      target: AML.TA0002
+      relationship-type: achieves
+    specializes:
+    - source: AML.T0000.000
+      target: AML.T0000
+      relationship-type: specializes
+  AML.T0010:
+    achieves:
+    - source: AML.T0010
+      target: AML.TA0004
+      relationship-type: achieves
+    - source: AML.T0010
+      target: AML.TA0002
+      relationship-type: achieves
+  AML.M0000:
+    mitigates:
+    - source: AML.M0000
+      target: AML.T0000
+      relationship-type: mitigates
