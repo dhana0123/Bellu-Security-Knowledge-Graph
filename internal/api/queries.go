@@ -228,8 +228,10 @@ RETURN p.productName AS key, count(v) AS n ORDER BY n DESC, key ASC LIMIT 10`
 
 	// Source coverage: what the graph holds, to compare with the upstream
 	// totals stored on the Checkpoint nodes.
+	// Only CVE-keyed nodes count for NVD: OSV and GHSA advisories without a CVE
+	// alias are Vulnerability nodes keyed by the advisory id (Requirement 9.5).
 	cypherCoverageVulns = `
-MATCH (v:Vulnerability)
+MATCH (v:Vulnerability) WHERE v.cveID STARTS WITH 'CVE-'
 RETURN count(v) AS cves, count(CASE WHEN coalesce(v.rejected, false) = false THEN 1 END) AS cvesNotRejected`
 	cypherCoverageWeaknesses = `MATCH (w:Weakness) RETURN count(w) AS weaknesses`
 	cypherCoverageExploits   = `MATCH (e:Exploit) RETURN count(e) AS exploits`
