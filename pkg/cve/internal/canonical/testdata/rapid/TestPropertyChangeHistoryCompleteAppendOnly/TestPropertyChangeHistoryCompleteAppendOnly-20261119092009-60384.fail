@@ -1,0 +1,25 @@
+# 2026/11/19 09:20:09.758776 [TestPropertyChangeHistoryCompleteAppendOnly] [rapid] draw n: 2
+# 2026/11/19 09:20:09.758786 [TestPropertyChangeHistoryCompleteAppendOnly] [rapid] draw summary: ""
+# 2026/11/19 09:20:09.758791 [TestPropertyChangeHistoryCompleteAppendOnly] [rapid] draw weaknesses: []string{}
+# 2026/11/19 09:20:09.758794 [TestPropertyChangeHistoryCompleteAppendOnly] [rapid] draw withdrawn: false
+# 2026/11/19 09:20:09.758799 [TestPropertyChangeHistoryCompleteAppendOnly] [rapid] draw refs: []string{}
+# 2026/11/19 09:20:09.758983 [TestPropertyChangeHistoryCompleteAppendOnly] [rapid] draw summary: "a"
+# 2026/11/19 09:20:09.758989 [TestPropertyChangeHistoryCompleteAppendOnly] [rapid] draw weaknesses: []string{}
+# 2026/11/19 09:20:09.758991 [TestPropertyChangeHistoryCompleteAppendOnly] [rapid] draw withdrawn: false
+# 2026/11/19 09:20:09.758994 [TestPropertyChangeHistoryCompleteAppendOnly] [rapid] draw refs: []string{}
+# 2026/11/19 09:20:09.759166 [TestPropertyChangeHistoryCompleteAppendOnly] earlier history entries changed at step 1
+# 
+v0.4.8#3745698940368738603
+0x0
+0x0
+0x1
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x1
+0x0
+0x0
+0x0

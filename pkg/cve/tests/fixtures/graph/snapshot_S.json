@@ -1,0 +1,142 @@
+[
+  {
+    "id": "GHSA-fix-0001",
+    "aliases": [
+      "CVE-2024-1000"
+    ],
+    "details": "fixture GHSA-fix-0001",
+    "published": "2024-01-01T00:00:00Z",
+    "modified": "2024-01-10T00:00:00Z",
+    "affected": [
+      {
+        "package": {
+          "ecosystem": "npm",
+          "name": "fix-pkg"
+        },
+        "ranges": [
+          {
+            "type": "SEMVER",
+            "events": [
+              {
+                "introduced": "0"
+              },
+              {
+                "fixed": "1.0.1"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "severity": [
+      {
+        "type": "CVSS_V3",
+        "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
+      }
+    ]
+  },
+  {
+    "id": "GHSA-wd-0002",
+    "aliases": [
+      "CVE-2024-2000"
+    ],
+    "details": "fixture GHSA-wd-0002",
+    "published": "2024-01-01T00:00:00Z",
+    "modified": "2024-01-10T00:00:00Z",
+    "affected": [
+      {
+        "package": {
+          "ecosystem": "npm",
+          "name": "wd-pkg"
+        },
+        "ranges": [
+          {
+            "type": "SEMVER",
+            "events": [
+              {
+                "introduced": "0"
+              },
+              {
+                "fixed": "1.0.1"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "severity": [
+      {
+        "type": "CVSS_V3",
+        "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
+      }
+    ]
+  },
+  {
+    "id": "CVE-2024-3000",
+    "aliases": [],
+    "details": "fixture CVE-2024-3000",
+    "published": "2024-01-01T00:00:00Z",
+    "modified": "2024-01-10T00:00:00Z",
+    "affected": [
+      {
+        "package": {
+          "ecosystem": "npm",
+          "name": "bridge-a"
+        },
+        "ranges": [
+          {
+            "type": "SEMVER",
+            "events": [
+              {
+                "introduced": "0"
+              },
+              {
+                "fixed": "1.0.1"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "severity": [
+      {
+        "type": "CVSS_V3",
+        "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
+      }
+    ]
+  },
+  {
+    "id": "CVE-2024-3001",
+    "aliases": [],
+    "details": "fixture CVE-2024-3001",
+    "published": "2024-01-01T00:00:00Z",
+    "modified": "2024-01-10T00:00:00Z",
+    "affected": [
+      {
+        "package": {
+          "ecosystem": "npm",
+          "name": "bridge-b"
+        },
+        "ranges": [
+          {
+            "type": "SEMVER",
+            "events": [
+              {
+                "introduced": "0"
+              },
+              {
+                "fixed": "1.0.1"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "severity": [
+      {
+        "type": "CVSS_V3",
+        "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
+      }
+    ]
+  }
+]

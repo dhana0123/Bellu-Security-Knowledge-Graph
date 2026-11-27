@@ -17,7 +17,7 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 
-	"github.com/bellu/bskg/internal/graph"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/graph"
 )
 
 // Image is the pinned Neo4j test image.

@@ -15,12 +15,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/bellu/bskg/internal/api"
-	"github.com/bellu/bskg/internal/apikey"
-	"github.com/bellu/bskg/internal/config"
-	"github.com/bellu/bskg/internal/graph"
-	"github.com/bellu/bskg/internal/migrate"
-	"github.com/bellu/bskg/ui"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/api"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/apikey"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/config"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/graph"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/migrate"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/ui"
 )
 
 const shutdownTimeout = 15 * time.Second

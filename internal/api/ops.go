@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/bellu/bskg/internal/model"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/model"
 )
 
 // OpsConfig holds the dependencies of the status, statistics, and

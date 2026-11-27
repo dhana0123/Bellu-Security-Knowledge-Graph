@@ -1,0 +1,75 @@
+# 2026/11/19 10:04:29.703132 [TestPropertySinksAgree] [rapid] draw keys: []graph.key{graph.key{s:"osv", i:"CVE-2024-0001"}, graph.key{s:"osv", i:"CVE-2024-0002"}}
+# 2026/11/19 10:04:29.703143 [TestPropertySinksAgree] [rapid] draw wd: 0
+# 2026/11/19 10:04:29.703146 [TestPropertySinksAgree] [rapid] draw aliases: []string{}
+# 2026/11/19 10:04:29.703149 [TestPropertySinksAgree] [rapid] draw cwes: []string{}
+# 2026/11/19 10:04:29.703151 [TestPropertySinksAgree] [rapid] draw fix: []string{}
+# 2026/11/19 10:04:29.703153 [TestPropertySinksAgree] [rapid] draw exp: []string{}
+# 2026/11/19 10:04:29.703154 [TestPropertySinksAgree] [rapid] draw naff: 0
+# 2026/11/19 10:04:29.703156 [TestPropertySinksAgree] [rapid] draw wd: 1
+# 2026/11/19 10:04:29.703159 [TestPropertySinksAgree] [rapid] draw aliases: []string{"CVE-2024-0001"}
+# 2026/11/19 10:04:29.703162 [TestPropertySinksAgree] [rapid] draw cwes: []string{}
+# 2026/11/19 10:04:29.703164 [TestPropertySinksAgree] [rapid] draw fix: []string{}
+# 2026/11/19 10:04:29.703166 [TestPropertySinksAgree] [rapid] draw exp: []string{}
+# 2026/11/19 10:04:29.703167 [TestPropertySinksAgree] [rapid] draw naff: 1
+# 2026/11/19 10:04:29.703169 [TestPropertySinksAgree] [rapid] draw prodk: 0
+# 2026/11/19 10:04:29.703171 [TestPropertySinksAgree] [rapid] draw vendor: "acme"
+# 2026/11/19 10:04:29.703172 [TestPropertySinksAgree] [rapid] draw product: "widget"
+# 2026/11/19 10:04:29.703173 [TestPropertySinksAgree] [rapid] draw bs: "0"
+# 2026/11/19 10:04:29.703176 [TestPropertySinksAgree] [rapid] draw be: "0"
+# 2026/11/19 10:04:29.706511 [TestPropertySinksAgree] [rapid] draw kev: false
+# 2026/11/19 10:04:29.706514 [TestPropertySinksAgree] [rapid] draw epss: false
+# 2026/11/19 10:04:29.706517 [TestPropertySinksAgree] [rapid] draw level: ""
+# 2026/11/19 10:04:29.706519 [TestPropertySinksAgree] [rapid] draw filter: false
+# 2026/11/19 10:04:29.711595 [TestPropertySinksAgree] graph: sink sqlite: graph: vulnerability CVE-2024-0002: graph: duplicate id: bc8ebe6f7c0fb247bc4d14b0254a142ce7f4c2e983fb3fb315aba3f1100e03ea
+# 
+v0.4.8#7341774801403236103
+0x0
+0x0
+0x0
+0x0
+0x0
+0x9249249249249
+0x0
+0x0
+0x0
+0x1
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x1
+0x10000000000000
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x1
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0

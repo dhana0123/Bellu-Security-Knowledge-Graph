@@ -10,11 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bellu/bskg/internal/change"
-	"github.com/bellu/bskg/internal/checkpoint"
-	"github.com/bellu/bskg/internal/graph"
-	"github.com/bellu/bskg/internal/source"
-	"github.com/bellu/bskg/internal/upsert"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/change"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/checkpoint"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/graph"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/source"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/upsert"
 )
 
 // fakeStore is an in-memory Store. Events records the call order.

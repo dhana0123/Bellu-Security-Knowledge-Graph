@@ -7,9 +7,9 @@ import (
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
-	"github.com/bellu/bskg/internal/checkpoint"
-	"github.com/bellu/bskg/internal/graph"
-	"github.com/bellu/bskg/internal/model"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/checkpoint"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/graph"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/model"
 )
 
 // All Cypher in this file is read-only, constant, and bounded: values come

@@ -14,12 +14,12 @@ import (
 
 	"github.com/oklog/ulid/v2"
 
-	"github.com/bellu/bskg/internal/checkpoint"
-	"github.com/bellu/bskg/internal/config"
-	"github.com/bellu/bskg/internal/graph"
-	"github.com/bellu/bskg/internal/migrate"
-	"github.com/bellu/bskg/internal/pipeline"
-	"github.com/bellu/bskg/internal/worker"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/checkpoint"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/config"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/graph"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/migrate"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/pipeline"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/worker"
 )
 
 // runWorker implements `bskg worker [--healthcheck]`: it runs the build queue

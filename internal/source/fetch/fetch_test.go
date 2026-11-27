@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bellu/bskg/internal/httpx"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/httpx"
 )
 
 type fakeClock struct{ slept []time.Duration }

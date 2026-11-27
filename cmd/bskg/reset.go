@@ -10,8 +10,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/bellu/bskg/internal/config"
-	"github.com/bellu/bskg/internal/maint"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/config"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/maint"
 )
 
 // resetCheckTimeout bounds the active-run check; the refusal must come within 5 s.

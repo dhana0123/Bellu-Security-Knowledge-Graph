@@ -10,9 +10,9 @@ import (
 	"sort"
 	"syscall"
 
-	"github.com/bellu/bskg/internal/config"
-	"github.com/bellu/bskg/internal/graph"
-	"github.com/bellu/bskg/internal/validate"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/config"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/graph"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/validate"
 )
 
 // validateExit maps an Execute outcome to the process exit code (Requirements

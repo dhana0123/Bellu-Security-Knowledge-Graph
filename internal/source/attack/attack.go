@@ -21,10 +21,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bellu/bskg/internal/httpx"
-	"github.com/bellu/bskg/internal/resolve"
-	"github.com/bellu/bskg/internal/source"
-	"github.com/bellu/bskg/internal/source/fetch"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/httpx"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/resolve"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/source"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/source/fetch"
 )
 
 // Name is the adapter and source name.

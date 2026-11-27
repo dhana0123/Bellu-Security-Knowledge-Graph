@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/bellu/bskg/internal/source"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/source"
 )
 
 // Key identifies a node: its label, key property, and canonical value.

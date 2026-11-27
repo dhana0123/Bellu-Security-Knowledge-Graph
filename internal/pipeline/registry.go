@@ -3,7 +3,7 @@ package pipeline
 import (
 	"fmt"
 
-	"github.com/bellu/bskg/internal/source"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/source"
 )
 
 // Registry holds the registered adapters in registration order.

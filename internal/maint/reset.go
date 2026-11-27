@@ -9,8 +9,8 @@ import (
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
-	"github.com/bellu/bskg/internal/graph"
-	"github.com/bellu/bskg/internal/model"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/graph"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/model"
 )
 
 // BatchLimit is the largest number of items one reset transaction deletes.

@@ -8,8 +8,8 @@ import (
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
-	"github.com/bellu/bskg/internal/resolve"
-	"github.com/bellu/bskg/internal/source"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/resolve"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/source"
 )
 
 type cveRecord struct {

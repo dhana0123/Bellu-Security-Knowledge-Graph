@@ -18,9 +18,9 @@ import (
 
 	"pgregory.net/rapid"
 
-	"github.com/bellu/bskg/internal/httpx"
-	"github.com/bellu/bskg/internal/resolve"
-	"github.com/bellu/bskg/internal/source"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/httpx"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/resolve"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/source"
 )
 
 type fakeClock struct{ slept []time.Duration }

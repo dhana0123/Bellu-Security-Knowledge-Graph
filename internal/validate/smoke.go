@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/bellu/bskg/internal/checkpoint"
-	"github.com/bellu/bskg/internal/model"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/checkpoint"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/model"
 )
 
 // SmokeResult is the outcome of the smoke check (Requirements 13.9, 13.10).

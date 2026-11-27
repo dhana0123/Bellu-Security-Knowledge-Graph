@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bellu/bskg/internal/apikey"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/apikey"
 	"pgregory.net/rapid"
 )
 

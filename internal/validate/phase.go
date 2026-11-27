@@ -3,7 +3,7 @@ package validate
 import (
 	"fmt"
 
-	"github.com/bellu/bskg/internal/model"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/model"
 )
 
 // Checks for the schema of phases 2 and 3 run only when the applied

@@ -3,7 +3,7 @@ package migrate
 import (
 	"context"
 	"errors"
-	"github.com/bellu/bskg/internal/model"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/model"
 	"strings"
 	"testing"
 	"testing/fstest"

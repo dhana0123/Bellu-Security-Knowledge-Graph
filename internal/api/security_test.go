@@ -7,7 +7,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/bellu/bskg/internal/checkpoint"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/checkpoint"
 )
 
 // phaseEnv is an entity env whose schema phase is fixed at phase.

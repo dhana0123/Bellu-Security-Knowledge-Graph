@@ -16,8 +16,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bellu/bskg/internal/apikey"
-	"github.com/bellu/bskg/internal/graph"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/apikey"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/graph"
 )
 
 // HealthTimeout bounds the /healthz connectivity check (answer within 2 s).

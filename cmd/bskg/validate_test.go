@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bellu/bskg/internal/validate"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/validate"
 )
 
 func TestValidateExit(t *testing.T) {

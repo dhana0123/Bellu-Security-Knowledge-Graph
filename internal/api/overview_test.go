@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bellu/bskg/internal/model"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/model"
 )
 
 func fp(f float64) *float64 { return &f }

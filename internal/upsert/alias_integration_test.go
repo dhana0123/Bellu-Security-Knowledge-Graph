@@ -9,10 +9,10 @@ import (
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
-	"github.com/bellu/bskg/internal/graph"
-	"github.com/bellu/bskg/internal/graph/graphtest"
-	"github.com/bellu/bskg/internal/source"
-	"github.com/bellu/bskg/internal/upsert"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/graph"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/graph/graphtest"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/source"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/upsert"
 )
 
 const itGHSA = "GHSA-c2f3-4gh5-wxmp"

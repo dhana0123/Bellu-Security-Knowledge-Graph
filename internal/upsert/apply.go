@@ -9,9 +9,9 @@ import (
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
-	"github.com/bellu/bskg/internal/change"
-	"github.com/bellu/bskg/internal/model"
-	"github.com/bellu/bskg/internal/provenance"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/change"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/model"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/provenance"
 )
 
 const appendSource = `CASE WHEN %[1]s.sources IS NULL THEN [$src] WHEN $src IN %[1]s.sources THEN %[1]s.sources ELSE %[1]s.sources + $src END`

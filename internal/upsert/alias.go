@@ -8,10 +8,10 @@ import (
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
-	"github.com/bellu/bskg/internal/change"
-	"github.com/bellu/bskg/internal/model"
-	"github.com/bellu/bskg/internal/resolve"
-	"github.com/bellu/bskg/internal/source"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/change"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/model"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/resolve"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/source"
 )
 
 // Alias handling for advisory sources (Requirements 9.4 to 9.9). Adapters set

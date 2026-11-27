@@ -17,8 +17,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bellu/bskg/internal/httpx"
-	"github.com/bellu/bskg/internal/source"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/httpx"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/source"
 )
 
 // fakeClock advances only when Sleep is called, so tests never wait.

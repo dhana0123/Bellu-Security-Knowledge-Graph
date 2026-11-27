@@ -6,8 +6,8 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/bellu/bskg/internal/resolve"
-	"github.com/bellu/bskg/internal/source"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/resolve"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/source"
 )
 
 // Link is what one reference URL says about git: a repository and, for a

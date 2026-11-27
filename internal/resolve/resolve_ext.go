@@ -9,7 +9,7 @@ import (
 
 	"github.com/package-url/packageurl-go"
 
-	"github.com/bellu/bskg/internal/source"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/source"
 )
 
 // Phase 2 and 3 rules (Requirements 9.10 to 9.12, 14 to 17). They follow the

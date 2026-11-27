@@ -7,7 +7,7 @@ import (
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
-	"github.com/bellu/bskg/internal/graph"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/graph"
 )
 
 // RunQueries executes the representative queries in READ transactions with a

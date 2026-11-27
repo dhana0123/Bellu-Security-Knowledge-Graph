@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bellu/bskg/internal/resolve"
-	"github.com/bellu/bskg/internal/source"
-	"github.com/bellu/bskg/internal/source/gitref"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/resolve"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/source"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/source/gitref"
 )
 
 const (

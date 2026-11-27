@@ -13,10 +13,10 @@ import (
 
 	"github.com/oklog/ulid/v2"
 
-	"github.com/bellu/bskg/internal/checkpoint"
-	"github.com/bellu/bskg/internal/graph"
-	"github.com/bellu/bskg/internal/source"
-	"github.com/bellu/bskg/internal/upsert"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/checkpoint"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/graph"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/source"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/upsert"
 )
 
 // Batch size limits (Requirement 3.11).

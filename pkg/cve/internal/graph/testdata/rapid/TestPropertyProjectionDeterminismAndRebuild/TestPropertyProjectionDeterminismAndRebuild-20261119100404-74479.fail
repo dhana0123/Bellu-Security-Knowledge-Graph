@@ -1,0 +1,54 @@
+# 2026/11/19 10:04:04.229898 [TestPropertyProjectionDeterminismAndRebuild] [rapid] draw keys: []graph.key{graph.key{s:"osv", i:"CVE-2024-0001"}}
+# 2026/11/19 10:04:04.229931 [TestPropertyProjectionDeterminismAndRebuild] [rapid] draw wd: 1
+# 2026/11/19 10:04:04.229935 [TestPropertyProjectionDeterminismAndRebuild] [rapid] draw aliases: []string{"CVE-2024-0002"}
+# 2026/11/19 10:04:04.229938 [TestPropertyProjectionDeterminismAndRebuild] [rapid] draw cwes: []string{}
+# 2026/11/19 10:04:04.229940 [TestPropertyProjectionDeterminismAndRebuild] [rapid] draw fix: []string{}
+# 2026/11/19 10:04:04.229942 [TestPropertyProjectionDeterminismAndRebuild] [rapid] draw exp: []string{}
+# 2026/11/19 10:04:04.229945 [TestPropertyProjectionDeterminismAndRebuild] [rapid] draw naff: 1
+# 2026/11/19 10:04:04.229946 [TestPropertyProjectionDeterminismAndRebuild] [rapid] draw prodk: 0
+# 2026/11/19 10:04:04.229948 [TestPropertyProjectionDeterminismAndRebuild] [rapid] draw vendor: "acme"
+# 2026/11/19 10:04:04.229949 [TestPropertyProjectionDeterminismAndRebuild] [rapid] draw product: "widget"
+# 2026/11/19 10:04:04.229951 [TestPropertyProjectionDeterminismAndRebuild] [rapid] draw bs: "0"
+# 2026/11/19 10:04:04.229952 [TestPropertyProjectionDeterminismAndRebuild] [rapid] draw be: "0"
+# 2026/11/19 10:04:04.233225 [TestPropertyProjectionDeterminismAndRebuild] [rapid] draw kev: false
+# 2026/11/19 10:04:04.233229 [TestPropertyProjectionDeterminismAndRebuild] [rapid] draw epss: false
+# 2026/11/19 10:04:04.233231 [TestPropertyProjectionDeterminismAndRebuild] [rapid] draw level: ""
+# 2026/11/19 10:04:04.233234 [TestPropertyProjectionDeterminismAndRebuild] [rapid] draw filter: false
+# 2026/11/19 10:04:04.234157 [TestPropertyProjectionDeterminismAndRebuild] edge id empty or duplicate: "bc8ebe6f7c0fb247bc4d14b0254a142ce7f4c2e983fb3fb315aba3f1100e03ea"
+# 
+v0.4.8#11522352985042819151
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x1
+0x10000000000000
+0x0
+0x1
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x1
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0

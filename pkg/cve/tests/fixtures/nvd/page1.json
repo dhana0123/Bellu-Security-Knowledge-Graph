@@ -1,0 +1,46 @@
+{
+  "resultsPerPage": 2,
+  "startIndex": 0,
+  "totalResults": 2,
+  "vulnerabilities": [
+    {
+      "cve": {
+        "id": "CVE-2021-44228",
+        "published": "2021-12-10T10:15:09.143",
+        "lastModified": "2023-04-03T20:15:00.000",
+        "vulnStatus": "Analyzed",
+        "descriptions": [{"lang": "en", "value": "Apache Log4j2 JNDI features do not protect against attacker controlled LDAP."}],
+        "metrics": {
+          "cvssMetricV31": [
+            {"source": "nvd@nist.gov", "cvssData": {"version": "3.1", "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H", "baseScore": 10.0}}
+          ]
+        },
+        "weaknesses": [{"description": [{"lang": "en", "value": "CWE-502"}, {"lang": "en", "value": "NVD-CWE-Other"}]}],
+        "configurations": [
+          {"nodes": [{"cpeMatch": [
+            {"vulnerable": true, "criteria": "cpe:2.3:a:apache:log4j:*:*:*:*:*:*:*:*", "versionStartIncluding": "2.0", "versionEndExcluding": "2.15.0"}
+          ]}]}
+        ],
+        "references": [
+          {"url": "https://logging.apache.org/log4j/2.x/security.html", "tags": ["Vendor Advisory"]},
+          {"url": "https://github.com/apache/logging-log4j2/commit/abc123", "tags": ["Patch"]}
+        ]
+      }
+    },
+    {
+      "cve": {
+        "id": "CVE-2020-0001",
+        "published": "2020-01-01T00:00:00.000",
+        "lastModified": "2020-02-01T00:00:00.000",
+        "vulnStatus": "Rejected",
+        "descriptions": [{"lang": "en", "value": "** REJECT ** Duplicate."}],
+        "metrics": {
+          "cvssMetricV2": [
+            {"source": "nvd@nist.gov", "cvssData": {"version": "2.0", "vectorString": "AV:N/AC:L/Au:N/C:P/I:P/A:P", "baseScore": 7.5}}
+          ]
+        },
+        "references": []
+      }
+    }
+  ]
+}

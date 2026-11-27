@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bellu/bskg/internal/source"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/source"
 )
 
 func fixtureZip(t *testing.T, name string, mutate func(string) string) []byte {

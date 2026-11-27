@@ -5,7 +5,7 @@ import (
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
-	"github.com/bellu/bskg/internal/graph"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/graph"
 )
 
 // Every Cypher statement the API runs is a constant in this file and is listed

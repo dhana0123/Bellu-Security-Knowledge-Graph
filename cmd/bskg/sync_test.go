@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bellu/bskg/internal/checkpoint"
-	"github.com/bellu/bskg/internal/pipeline"
-	"github.com/bellu/bskg/internal/source"
-	"github.com/bellu/bskg/internal/worker"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/checkpoint"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/pipeline"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/source"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/worker"
 )
 
 type nopAdapter struct{ name string }

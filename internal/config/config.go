@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bellu/bskg/internal/resolve"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/resolve"
 )
 
 // Scope selects which groups of settings a subcommand needs validated.

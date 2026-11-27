@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bellu/bskg/internal/change"
-	"github.com/bellu/bskg/internal/resolve"
-	"github.com/bellu/bskg/internal/source"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/change"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/resolve"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/source"
 )
 
 var t0 = time.Date(2024, 1, 2, 3, 4, 5, 0, time.UTC)

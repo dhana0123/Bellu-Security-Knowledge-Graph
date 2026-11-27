@@ -14,7 +14,7 @@ import (
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
-	"github.com/bellu/bskg/internal/checkpoint"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/checkpoint"
 )
 
 func opsEnv(t *testing.T, q queryFunc, src SourceStatusFunc, batch BatchFunc) *env {

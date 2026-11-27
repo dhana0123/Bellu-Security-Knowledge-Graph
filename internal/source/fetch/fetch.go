@@ -20,7 +20,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/bellu/bskg/internal/httpx"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/httpx"
 )
 
 // PartSuffix is appended to the file name while a download is running.

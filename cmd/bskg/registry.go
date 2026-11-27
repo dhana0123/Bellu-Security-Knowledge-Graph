@@ -3,18 +3,18 @@ package main
 import (
 	"os"
 
-	"github.com/bellu/bskg/internal/config"
-	"github.com/bellu/bskg/internal/pipeline"
-	"github.com/bellu/bskg/internal/source/atlas"
-	"github.com/bellu/bskg/internal/source/attack"
-	"github.com/bellu/bskg/internal/source/capec"
-	"github.com/bellu/bskg/internal/source/cwe"
-	"github.com/bellu/bskg/internal/source/epss"
-	"github.com/bellu/bskg/internal/source/exploitdb"
-	"github.com/bellu/bskg/internal/source/ghsa"
-	"github.com/bellu/bskg/internal/source/kev"
-	"github.com/bellu/bskg/internal/source/nvd"
-	"github.com/bellu/bskg/internal/source/osv"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/config"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/pipeline"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/source/atlas"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/source/attack"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/source/capec"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/source/cwe"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/source/epss"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/source/exploitdb"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/source/ghsa"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/source/kev"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/source/nvd"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/source/osv"
 )
 
 // version is the product version sent in the NVD User-Agent. Set it with

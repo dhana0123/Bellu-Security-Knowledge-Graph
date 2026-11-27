@@ -5,9 +5,9 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/bellu/bskg/internal/change"
-	"github.com/bellu/bskg/internal/resolve"
-	"github.com/bellu/bskg/internal/source"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/change"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/resolve"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/source"
 )
 
 const ghsa = "GHSA-c2f3-4gh5-wxmp"

@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/bellu/bskg/internal/resolve"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/resolve"
 )
 
 // maxLinked bounds every list of related entities on a detail page.

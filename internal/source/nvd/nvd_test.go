@@ -19,9 +19,9 @@ import (
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
-	"github.com/bellu/bskg/internal/httpx"
-	"github.com/bellu/bskg/internal/source"
-	"github.com/bellu/bskg/internal/source/gitref"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/httpx"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/source"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/source/gitref"
 )
 
 // fakeClock advances only when Sleep is called, so tests never wait.

@@ -6,9 +6,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/bellu/bskg/internal/graph"
-	"github.com/bellu/bskg/internal/graph/graphtest"
-	"github.com/bellu/bskg/internal/validate"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/graph"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/graph/graphtest"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/validate"
 )
 
 func queryClient(t *testing.T) *graph.Client {

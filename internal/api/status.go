@@ -6,9 +6,9 @@ import (
 	"sort"
 	"time"
 
-	"github.com/bellu/bskg/internal/checkpoint"
-	"github.com/bellu/bskg/internal/graph"
-	"github.com/bellu/bskg/internal/worker"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/checkpoint"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/graph"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/worker"
 )
 
 // SourceStatusFunc reads per-source status; checkpoint.ReadStatus backs it.

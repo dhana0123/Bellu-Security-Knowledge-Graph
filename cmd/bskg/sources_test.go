@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bellu/bskg/internal/config"
-	"github.com/bellu/bskg/internal/pipeline"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/config"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/pipeline"
 )
 
 func TestSourceJobsFollowEnabledAndRegistered(t *testing.T) {

@@ -13,9 +13,9 @@ import (
 
 	"pgregory.net/rapid"
 
-	"github.com/bellu/bskg/internal/resolve"
-	"github.com/bellu/bskg/internal/source"
-	"github.com/bellu/bskg/internal/upsert"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/resolve"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/source"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/upsert"
 )
 
 // Feature: bellu-security-knowledge-graph, Property 66: KEV and EPSS updates (Phase 2)

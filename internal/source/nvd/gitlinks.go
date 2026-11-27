@@ -1,8 +1,8 @@
 package nvd
 
 import (
-	"github.com/bellu/bskg/internal/source"
-	"github.com/bellu/bskg/internal/source/gitref"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/source"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/source/gitref"
 )
 
 // gitLinks maps the reference URLs of one CVE to git entities; see gitref.Append.

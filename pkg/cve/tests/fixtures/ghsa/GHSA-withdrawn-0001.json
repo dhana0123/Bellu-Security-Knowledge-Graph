@@ -1,0 +1,15 @@
+{
+  "id": "GHSA-wxyz-0000-0001",
+  "aliases": ["CVE-2022-0002"],
+  "summary": "Withdrawn advisory",
+  "details": "This advisory was withdrawn as a duplicate.",
+  "modified": "2022-05-01T00:00:00Z",
+  "published": "2022-04-01T00:00:00Z",
+  "withdrawn": "2022-05-01T00:00:00Z",
+  "affected": [
+    {
+      "package": {"ecosystem": "npm", "name": "left-pad"},
+      "ranges": [{"type": "SEMVER", "events": [{"introduced": "0"}, {"last_affected": "1.3.0"}]}]
+    }
+  ]
+}

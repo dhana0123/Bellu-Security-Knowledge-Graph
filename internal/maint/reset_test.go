@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/bellu/bskg/internal/model"
+	"github.com/dhana0123/Bellu-Security-Knowledge-Graph/internal/model"
 )
 
 type fakeStore struct {
